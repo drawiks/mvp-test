@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QApplication
 
 from mvp import __version__
 from mvp.ui.main_window import MainWindow
+from mvp.ui.resources import register_fonts
 
 _REPLAY_SUFFIXES = (".dem", ".dem.bz2", ".dem.zst")
 
@@ -17,6 +18,7 @@ def main() -> int:
     QCoreApplication.setApplicationName("mvp-calculator")
     app = QApplication(sys.argv)
     app.setApplicationDisplayName("MVP Calculator")
+    register_fonts()
     window = MainWindow()
     window.show()
 

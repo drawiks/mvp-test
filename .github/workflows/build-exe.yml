@@ -43,6 +43,7 @@ jobs:
             --windows-console-mode=disable \
             --assume-yes-for-downloads \
             --include-data-files=manta_cli.exe=manta_cli.exe \
+            --include-data-files=assets/=assets/ \
             --output-filename=MVP_Calculator.exe \
             --output-dir=dist \
             mvp/__main__.py

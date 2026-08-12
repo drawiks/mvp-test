@@ -91,7 +91,7 @@ def test_custom_weights_only_first_blood(result: Result) -> None:
 def test_custom_weights_change_ranking(result: Result) -> None:
     weights = Weights(kills=1.0, deaths=0.0, deaths_base=0.0)
     top = ranked_players(result, weights)[0]
-    assert top.name == "mvhoyeti"  # 15 kills
+    assert top.name == "mvhoyeti"
 
 
 def test_weights_to_from_mapping_roundtrip() -> None:

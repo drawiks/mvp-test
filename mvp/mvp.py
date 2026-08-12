@@ -4,11 +4,6 @@ from dataclasses import asdict, dataclass
 
 from .model import Player, Result
 
-# Итоговый счёт:
-#   (Kills * w.kills) + (w.deaths_base - Deaths * w.deaths) + (Assists * w.assists)
-#   + (LastHits * w.last_hits) + (GPM * w.gpm) + (XPM * w.xpm)
-#   + (StunDuration * w.stun) + (Healing * w.healing) + (TowerDamage * w.tower_damage)
-#   + (CampsStacked * w.camps) + (RunePickups * w.runes) + (w.first_blood если FirstBlood)
 @dataclass(frozen=True)
 class Weights:
     kills: float = 0.3
