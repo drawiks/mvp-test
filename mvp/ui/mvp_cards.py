@@ -5,7 +5,7 @@ from PyQt6.QtGui import QColor, QLinearGradient, QPainter
 from PyQt6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from ..model import Player
-from ..mvp import compute_score, score_breakdown, Weights
+from ..mvp import as_weights, compute_score, score_breakdown, Weights
 from . import theme
 from .hero_images import hero_images
 from .icons import medal_pixmap
@@ -191,10 +191,15 @@ class MvpCard(QFrame):
         self._stats["level"].setText(str(player.level))
         self._stats["gpmxpm"].setText(f"{player.gpm} / {player.xpm}")
 
-        breakdown = score_breakdown(player, weights)
-        lines = [f"Итоговый счёт: {score:.2f}", ""]
-        for key, label in _BREAKDOWN_LABELS.items():
-            lines.append(f"  {label:<22} {breakdown[key]:+10.3f}")
+        weights_lin = as_weights(weights)
+        lines = [f"Итоговый счёт: {score:.2f}"]
+        if weights_lin is not None:
+            breakdown = score_breakdown(player, weights_lin)
+            lines.append("")
+            for key, label in _BREAKDOWN_LABELS.items():
+                lines.append(f"  {label:<22} {breakdown[key]:+10.3f}")
+        else:
+            lines += ["", f"Формула: {weights.expression}"]
         self.setToolTip("\n".join(lines))
         self.update()
 

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 import urllib.request
+from collections import OrderedDict
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, Qt, pyqtSignal
@@ -21,6 +23,8 @@ _CACHE_ROOT = (
 )
 
 _SLUG_RE = re.compile(r"[^A-Za-z0-9_]+")
+
+_MAX_PIXMAP_CACHE = 200
 
 
 class _Signals(QObject):
@@ -45,9 +49,10 @@ class _FetchTask(QRunnable):
             tmp = self._path.with_name(self._path.name + ".part")
             tmp.write_bytes(data)
             os.replace(tmp, self._path)
-        except Exception:
-            pass
-        self._signals.ready.emit(self._hero_id, self._variant)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Hero image download failed: %s/%s -> %s", self._hero_id, self._variant, exc)
+        finally:
+            self._signals.ready.emit(self._hero_id, self._variant)
 
 
 class HeroImages(QObject):
@@ -56,12 +61,26 @@ class HeroImages(QObject):
     def __init__(self, parent: QObject | None = None):
         super().__init__(parent)
         self._names = hero_image_names()
-        self._pixmaps: dict[tuple, QPixmap] = {}
+        self._pixmaps: OrderedDict[tuple, QPixmap] = OrderedDict()
         self._in_flight: set[tuple[int, str]] = set()
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(4)
         self._signals = _Signals()
         self._signals.ready.connect(self._handle_ready)
+
+    def _cache_get(self, key: tuple) -> QPixmap | None:
+        pm = self._pixmaps.get(key)
+        if pm is not None:
+            self._pixmaps.move_to_end(key)
+        return pm
+
+    def _cache_put(self, key: tuple, pm: QPixmap) -> None:
+        if key in self._pixmaps:
+            self._pixmaps.move_to_end(key)
+        else:
+            self._pixmaps[key] = pm
+            if len(self._pixmaps) > _MAX_PIXMAP_CACHE:
+                self._pixmaps.popitem(last=False)
 
     def request(self, hero_id: int, hero_name: str = "", variant: str = "portrait") -> None:
         name = self._slug(hero_id, hero_name)
@@ -77,7 +96,8 @@ class HeroImages(QObject):
         self._pool.start(_FetchTask(hero_id, variant, url, path, self._signals))
 
     def pixmap(self, hero_id: int, variant: str = "portrait", size: tuple[int, int] = (0, 0)) -> QPixmap:
-        pm = self._pixmaps.get((hero_id, variant))
+        key = (hero_id, variant)
+        pm = self._cache_get(key)
         if pm is None:
             name = self._slug(hero_id, "")
             if name is not None:
@@ -86,7 +106,7 @@ class HeroImages(QObject):
                     loaded = QPixmap(str(path))
                     if not loaded.isNull():
                         pm = loaded
-                        self._pixmaps[(hero_id, variant)] = pm
+                        self._cache_put(key, pm)
         if pm is None:
             return self._fallback(hero_id, size)
         width, height = size
@@ -95,13 +115,15 @@ class HeroImages(QObject):
         return pm
 
     def has_image(self, hero_id: int, variant: str = "portrait") -> bool:
-        if (hero_id, variant) in self._pixmaps:
+        key = (hero_id, variant)
+        if key in self._pixmaps:
             return True
         name = self._slug(hero_id, "")
         return name is not None and self._cache_path(hero_id, variant, name).exists()
 
     def cropped(self, hero_id: int, target_size: tuple[int, int]) -> QPixmap:
-        pm = self._pixmaps.get((hero_id, "portrait"))
+        key = (hero_id, "portrait")
+        pm = self._cache_get(key)
         if pm is None:
             name = self._slug(hero_id, "")
             if name is not None:
@@ -110,7 +132,7 @@ class HeroImages(QObject):
                     loaded = QPixmap(str(path))
                     if not loaded.isNull():
                         pm = loaded
-                        self._pixmaps[(hero_id, "portrait")] = pm
+                        self._cache_put(key, pm)
         if pm is None:
             return self._fallback(hero_id, target_size)
         tw, th = target_size
@@ -149,7 +171,7 @@ class HeroImages(QObject):
         width = max(size[0] or 64, 1)
         height = max(size[1] or 64, 1)
         key = ("fb", hero_id, width, height)
-        pm = self._pixmaps.get(key)
+        pm = self._cache_get(key)
         if pm is not None:
             return pm
         seed = int(hashlib.md5(str(hero_id).encode()).hexdigest()[:6], 16)
@@ -174,7 +196,7 @@ class HeroImages(QObject):
         painter.setFont(font)
         painter.drawText(pm.rect(), Qt.AlignmentFlag.AlignCenter, initial)
         painter.end()
-        self._pixmaps[key] = pm
+        self._cache_put(key, pm)
         return pm
 
 

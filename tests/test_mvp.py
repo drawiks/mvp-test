@@ -100,3 +100,37 @@ def test_weights_to_from_mapping_roundtrip() -> None:
     assert weights_from_mapping(weights_to_mapping(DEFAULT_WEIGHTS)) == DEFAULT_WEIGHTS
     custom = Weights(kills=2.5, first_blood=0.0)
     assert weights_from_mapping(weights_to_mapping(custom)) == custom
+
+
+def test_expression_preset_matches_linear_defaults(result: Result) -> None:
+    from mvp.formula import Preset
+
+    expression = (
+        "kills * 0.3 + (3 - deaths * 0.3) + assists * 0.15 + last_hits * 0.003"
+        " + gpm * 0.002 + xpm * 0.002 + stun_duration * 0.05 + healing * 0.004"
+        " + tower_damage * 0.001 + camps_stacked * 0.5 + rune_pickups * 0.2 + first_blood"
+    )
+    preset = Preset(id="expr", name="Expr", kind="expression", expression=expression)
+    by_name = {p.name: p for p in result.players}
+    for name, expected in {
+        "oyoy": 52.243995,
+        "mvhoyeti": 46.113656,
+        "Master Control": 14.334008,
+    }.items():
+        assert compute_score(by_name[name], preset) == pytest.approx(expected, abs=0.002)
+
+
+def test_expression_preset_select_mvps(result: Result) -> None:
+    from mvp.formula import Preset
+
+    preset = Preset(
+        id="expr",
+        name="Expr",
+        kind="expression",
+        expression="(kills * 3 + assists * 1.5) / max(deaths, 1)",
+    )
+    mvps = select_mvps(result, preset)
+    assert mvps["winner_top1"].team == "dire"
+    assert mvps["winner_top2"].team == "dire"
+    assert mvps["loser_top1"].team == "radiant"
+    assert compute_score(mvps["winner_top1"], preset) > 0

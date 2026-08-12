@@ -3,9 +3,10 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import QSettings, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QSettings, QStandardPaths, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QKeySequence, QPainter, QPen, QShortcut
 from PyQt6.QtWidgets import (
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -19,10 +20,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ..formula import DEFAULT_LINEAR_WEIGHTS, FormulaError, PresetStore
 from ..manta_client import MantaNotFoundError, MantaWorker, find_manta_cli
 from ..model import Result
-from ..mvp import DEFAULT_WEIGHTS, select_mvps, weights_from_mapping, weights_to_mapping
+from ..mvp import DEFAULT_WEIGHTS, select_mvps, weights_to_mapping
 from . import theme
+from .formula_dialog import FormulaEditorDialog
+from .formula_manager import FormulaManagerDialog
 from .icons import folder_pixmap
 from .mvp_cards import MvpCardsRow
 from .stats_table import StatsTable
@@ -168,6 +172,12 @@ class MainWindow(QMainWindow):
         self._timer.setInterval(1000)
         self._timer.timeout.connect(self._on_tick)
 
+        data_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.AppDataLocation
+        )
+        store_path = Path(data_dir) / "formulas.json" if data_dir else None
+        self._store = PresetStore(store_path) if store_path else PresetStore(Path.home() / ".mvp-calculator" / "formulas.json")
+
         self._build_ui()
         self._build_menu()
         self.setAcceptDrops(True)
@@ -264,10 +274,11 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self._table, 1)
         splitter.addWidget(left)
 
-        self._weights_panel = WeightsPanel()
+        self._weights_panel = WeightsPanel(self._store)
         self._weights_panel.setMinimumWidth(300)
         self._weights_panel.setMaximumWidth(380)
         self._weights_panel.changed.connect(self._recompute)
+        self._weights_panel.edit_requested.connect(self._edit_active_formula)
         splitter.addWidget(self._weights_panel)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
@@ -287,6 +298,8 @@ class MainWindow(QMainWindow):
         self.menuBar().addMenu(file_menu)
 
         settings_menu = QMenu("Настройки", self)
+        formulas_action = settings_menu.addAction("Формулы…")
+        formulas_action.triggered.connect(self._open_formulas)
         manta_action = settings_menu.addAction("Путь к manta_cli…")
         manta_action.triggered.connect(self.choose_manta_binary)
         reset_action = settings_menu.addAction("Сбросить коэффициенты")
@@ -304,21 +317,49 @@ class MainWindow(QMainWindow):
         custom = self._settings.value("manta/path")
         if custom:
             self._binary = Path(custom)
-        mapping = {}
+        legacy = {}
         for key in weights_to_mapping(DEFAULT_WEIGHTS):
             value = self._settings.value(f"weights/{key}")
             if value is not None:
                 try:
-                    mapping[key] = float(value)
+                    legacy[key] = float(value)
                 except (TypeError, ValueError):
                     pass
-        if mapping:
-            self._weights_panel.set_weights(weights_from_mapping(mapping))
+        if legacy:
+            standard = self._store.get("standard")
+            if standard is not None and standard.weights == DEFAULT_LINEAR_WEIGHTS:
+                standard.weights.update(legacy)
+                self._store.save()
+            for key in legacy:
+                self._settings.remove(f"weights/{key}")
         self._drop_zone.set_idle()
 
-    def _save_weights(self) -> None:
-        for key, value in weights_to_mapping(self._weights_panel.weights()).items():
-            self._settings.setValue(f"weights/{key}", value)
+    def _open_formulas(self) -> None:
+        players = self._result.players if self._result else None
+        dialog = FormulaManagerDialog(self._store, players, parent=self)
+        dialog.presets_changed.connect(self._on_presets_changed)
+        dialog.exec()
+
+    def _edit_active_formula(self) -> None:
+        preset = self._weights_panel.preset()
+        if preset.kind != "expression":
+            QMessageBox.information(
+                self,
+                "Стандартная формула",
+                "«Стандартная» редактируется ползунками коэффициентов. "
+                "Для текстовой формулы создайте новую в меню «Формулы…».",
+            )
+            return
+        players = self._result.players if self._result else None
+        dialog = FormulaEditorDialog(preset, players, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._store.save()
+            self._weights_panel.refresh_presets()
+            self._recompute()
+
+    def _on_presets_changed(self) -> None:
+        self._weights_panel.refresh_presets()
+        self._recompute()
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if self._urls_from_event(event):
@@ -363,8 +404,12 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"manta_cli: {path}", 5000)
 
     def load_replay(self, path: Path) -> None:
-        if self._worker is not None and self._worker.is_running():
-            return
+        if self._worker is not None:
+            if self._worker.is_running():
+                self._worker.cancel()
+            self._worker.deleteLater()
+            self._worker = None
+
         if not self._is_replay_path(path):
             QMessageBox.warning(
                 self, "Неверный файл",
@@ -439,6 +484,7 @@ class MainWindow(QMainWindow):
         elapsed = time.monotonic() - self._started_at
         self._timer.stop()
         self._set_busy(False)
+        self._finish_worker()
         self._result = result
         if self._last_path is not None:
             self._drop_zone.set_done(self._last_path.name, elapsed)
@@ -453,21 +499,30 @@ class MainWindow(QMainWindow):
     def _on_parse_failed(self, message: str) -> None:
         self._timer.stop()
         self._set_busy(False)
+        self._finish_worker()
         _set_object_name(self._drop_zone, "dropZone")
         self._drop_zone.set_error()
         self.statusBar().showMessage("Ошибка анализа реплея", 6000)
         print(f"[mvp] error: {message}", flush=True)
         QMessageBox.critical(self, "Ошибка анализа реплея", message)
 
+    def _finish_worker(self) -> None:
+        if self._worker is not None:
+            worker, self._worker = self._worker, None
+            worker.deleteLater()
+
     def _recompute(self) -> None:
         if self._result is None:
             return
-        weights = self._weights_panel.weights()
-        mvps = select_mvps(self._result, weights)
-        self._cards.show_mvps(mvps, weights)
-        self._table.set_result(self._result, weights)
+        preset = self._weights_panel.preset()
+        try:
+            mvps = select_mvps(self._result, preset)
+        except FormulaError as exc:
+            self.statusBar().showMessage(f"Ошибка формулы: {exc}", 6000)
+            return
+        self._cards.show_mvps(mvps, preset)
+        self._table.set_result(self._result, preset)
         self._update_match_info()
-        self._save_weights()
 
     def _update_match_info(self) -> None:
         result = self._result

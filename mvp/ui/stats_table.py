@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..model import Player, Result
-from ..mvp import compute_score, score_breakdown, select_mvps, Weights
+from ..mvp import as_weights, compute_score, score_breakdown, select_mvps, Weights
 from . import theme
 from .hero_images import hero_images
 
@@ -266,15 +266,23 @@ class StatsTable(QTableWidget):
     def _stat_tooltip(player: Player, weights: Weights, key: str) -> str:
         label = _BREAKDOWN_LABELS[key]
         value = getattr(player, _PLAYER_ATTRS[key])
-        w = getattr(weights, key)
-        return f"{label}: {value:g} × {w:g} = {value * w:+.3f}"
+        w = as_weights(weights)
+        if w is None:
+            return f"{label}: {value:g}"
+        weight = getattr(w, key)
+        return f"{label}: {value:g} × {weight:g} = {value * weight:+.3f}"
 
     @staticmethod
     def _breakdown_tooltip(player: Player, weights: Weights, score: float) -> str:
-        breakdown = score_breakdown(player, weights)
-        lines = [f"{player.hero or '-'} · {player.name or '-'}", f"Итоговый счёт: {score:.2f}", ""]
-        for key, label in _BREAKDOWN_LABELS.items():
-            lines.append(f"  {label:<22} {breakdown[key]:+10.3f}")
+        lines = [f"{player.hero or '-'} · {player.name or '-'}", f"Итоговый счёт: {score:.2f}"]
+        w = as_weights(weights)
+        if w is None:
+            lines += ["", f"Формула: {weights.expression}"]
+        else:
+            breakdown = score_breakdown(player, w)
+            lines.append("")
+            for key, label in _BREAKDOWN_LABELS.items():
+                lines.append(f"  {label:<22} {breakdown[key]:+10.3f}")
         return "\n".join(lines)
 
     def _on_hero_loaded(self, hero_id: int, variant: str) -> None:

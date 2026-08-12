@@ -80,8 +80,10 @@ class MantaWorker(QObject):
         self._proc.readyReadStandardOutput.connect(self._on_stdout)
         self._proc.readyReadStandardError.connect(self._on_stderr)
         self._proc.finished.connect(self._on_finished)
+        self._proc.errorOccurred.connect(self._on_error)
         self._stdout = bytearray()
         self._stderr = bytearray()
+        self._cancelled = False
 
     @property
     def binary(self) -> Path:
@@ -90,12 +92,14 @@ class MantaWorker(QObject):
     def start(self, replay_path: Path) -> None:
         self._stdout.clear()
         self._stderr.clear()
+        self._cancelled = False
         self._proc.start(str(self._binary), [str(Path(replay_path))])
 
     def is_running(self) -> bool:
         return self._proc.state() != QProcess.ProcessState.NotRunning
 
     def cancel(self) -> None:
+        self._cancelled = True
         if self.is_running():
             self._proc.kill()
 
@@ -105,7 +109,13 @@ class MantaWorker(QObject):
     def _on_stderr(self) -> None:
         self._stderr.extend(self._proc.readAllStandardError())
 
+    def _on_error(self, error) -> None:
+        if error != QProcess.ProcessError.FailedToStart and not self._cancelled:
+            self._stderr.extend(f"manta_cli error: {error}".encode("utf-8"))
+
     def _on_finished(self, exit_code: int, _status) -> None:
+        if self._cancelled:
+            return
         if exit_code != 0:
             detail = self._stderr.decode("utf-8", errors="replace").strip()
             self.failed.emit(

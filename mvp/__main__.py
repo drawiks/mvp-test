@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import tempfile
@@ -27,6 +28,11 @@ def _log_unhandled(exc_type, exc, tb) -> None:
 def main() -> int:
     QCoreApplication.setOrganizationName("drawiks")
     QCoreApplication.setApplicationName("mvp-calculator")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=[logging.FileHandler(_LOG_PATH, encoding="utf-8"), logging.StreamHandler()],
+    )
     app = QApplication(sys.argv)
     app.setApplicationDisplayName("MVP Calculator")
     sys.excepthook = _log_unhandled

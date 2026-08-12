@@ -166,6 +166,56 @@ QFrame#weightSection {{
 QLabel#weightSectionTitle {{ color: {TEXT_SECONDARY}; font-size: 12px; font-weight: 700; }}
 QLabel#weightHint {{ color: {TEXT_MUTED}; font-size: 11px; }}
 QLabel#formulaText {{ color: {TEXT_SECONDARY}; font-size: 11px; }}
+QLabel#previewScore {{ color: {ACCENT}; font-weight: 700; }}
+
+QPushButton#chip {{
+    background-color: {PANEL};
+    border: 1px solid {BORDER_LIGHT};
+    border-radius: 12px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: {TEXT_SECONDARY};
+}}
+QPushButton#chip:hover {{ background-color: {_rgba(ACCENT, 18)}; border-color: {ACCENT}; color: {TEXT_PRIMARY}; }}
+
+QComboBox {{
+    background-color: {BG_ELEVATED};
+    border: 1px solid {BORDER_LIGHT};
+    border-radius: 7px;
+    padding: 5px 10px;
+    color: {TEXT_PRIMARY};
+}}
+QComboBox:focus {{ border-color: {ACCENT}; }}
+QComboBox::drop-down {{ border: none; width: 22px; }}
+QComboBox QAbstractItemView {{
+    background-color: {PANEL};
+    border: 1px solid {BORDER_LIGHT};
+    selection-background-color: {PANEL_ALT};
+    color: {TEXT_PRIMARY};
+}}
+
+QListWidget {{
+    background-color: {PANEL};
+    border: 1px solid {BORDER};
+    border-radius: 9px;
+    padding: 4px;
+}}
+QListWidget::item {{ padding: 8px 10px; border-radius: 6px; color: {TEXT_SECONDARY}; }}
+QListWidget::item:selected {{ background-color: {_rgba(ACCENT, 18)}; color: {TEXT_PRIMARY}; }}
+QListWidget::item:hover {{ background-color: {PANEL_ALT}; }}
+
+QPlainTextEdit {{
+    background-color: {BG_ELEVATED};
+    border: 1px solid {BORDER_LIGHT};
+    border-radius: 8px;
+    padding: 8px;
+    color: {TEXT_PRIMARY};
+    selection-background-color: {BLUE};
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 13px;
+}}
+QPlainTextEdit:focus {{ border-color: {ACCENT}; }}
 
 QDoubleSpinBox {{
     background-color: {BG_ELEVATED};
