@@ -10,8 +10,6 @@ from PyQt6.QtCore import QObject, QProcess, pyqtSignal
 
 from .model import Player, Result
 
-_CREATE_NO_WINDOW = 0x08000000
-
 
 class MantaNotFoundError(FileNotFoundError):
     pass
@@ -82,14 +80,8 @@ class MantaWorker(QObject):
         self._proc.readyReadStandardOutput.connect(self._on_stdout)
         self._proc.readyReadStandardError.connect(self._on_stderr)
         self._proc.finished.connect(self._on_finished)
-        if os.name == "nt":
-            self._proc.setCreateProcessArgumentsModifier(self._no_console_modifier)
         self._stdout = bytearray()
         self._stderr = bytearray()
-
-    @staticmethod
-    def _no_console_modifier(args) -> None:
-        args.flags |= _CREATE_NO_WINDOW
 
     @property
     def binary(self) -> Path:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
+import traceback
 from pathlib import Path
 
 from PyQt6.QtCore import QCoreApplication, QTimer
@@ -12,12 +15,21 @@ from mvp.ui.resources import register_fonts
 
 _REPLAY_SUFFIXES = (".dem", ".dem.bz2", ".dem.zst")
 
+_LOG_PATH = Path(tempfile.gettempdir()) / "mvp_calculator.log"
+
+
+def _log_unhandled(exc_type, exc, tb) -> None:
+    with open(_LOG_PATH, "a", encoding="utf-8") as fh:
+        fh.write("".join(traceback.format_exception(exc_type, exc, tb)) + "\n")
+    sys.__excepthook__(exc_type, exc, tb)
+
 
 def main() -> int:
     QCoreApplication.setOrganizationName("drawiks")
     QCoreApplication.setApplicationName("mvp-calculator")
     app = QApplication(sys.argv)
     app.setApplicationDisplayName("MVP Calculator")
+    sys.excepthook = _log_unhandled
     register_fonts()
     window = MainWindow()
     window.show()

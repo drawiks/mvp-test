@@ -31,7 +31,7 @@ jobs:
           git clone https://github.com/drawiks/manta-cli.git manta-cli
           cd manta-cli
           git checkout 0434634
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o manta_cli.exe .
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w -H windowsgui" -o manta_cli.exe .
           cp manta_cli.exe ../manta_cli.exe
 
       - name: Build EXE with Nuitka
