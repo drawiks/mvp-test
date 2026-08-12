@@ -5,6 +5,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-exe:
     runs-on: windows-latest
@@ -53,3 +60,29 @@ jobs:
         with:
           name: MVP_Calculator-windows
           path: dist/MVP_Calculator.exe
+
+      - name: Determine next release version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prev=$(gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name 2>/dev/null || true)
+          if [ -z "$prev" ]; then
+            echo "RELEASE_VERSION=v0.1.0" >> "$GITHUB_ENV"
+          else
+            minor=${prev#v0.}
+            minor=${minor%.0}
+            echo "RELEASE_VERSION=v0.$((minor + 1)).0" >> "$GITHUB_ENV"
+          fi
+          echo "next release: $RELEASE_VERSION"
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$RELEASE_VERSION" \
+            "dist/MVP_Calculator.exe#MVP_Calculator-windows-$RELEASE_VERSION.exe" \
+            --target "${{ github.sha }}" \
+            --title "$RELEASE_VERSION" \
+            --notes-file README.md
