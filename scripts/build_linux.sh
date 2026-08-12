@@ -11,11 +11,11 @@ if [ ! -x manta_cli ]; then
   exit 1
 fi
 
-python -m nuitka --mode=onefile --enable-plugin=pyqt6 \
+python -m nuitka --mode=standalone --enable-plugin=pyqt6 \
   --assume-yes-for-downloads \
   --include-data-files=manta_cli=manta_cli \
   --include-data-dir=assets=assets \
   --output-filename=MVP_Calculator --output-dir=dist \
   mvp/__main__.py
 
-echo "Готово: dist/MVP_Calculator"
+echo "Готово: dist/MVP_Calculator.dist"
