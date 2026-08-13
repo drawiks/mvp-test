@@ -16,7 +16,7 @@ from ..mvp import as_weights, compute_score, score_breakdown, select_mvps, Weigh
 from . import theme
 from .hero_images import hero_images
 
-_HEADERS = ["#", "Герой", "Игрок", "Ур.", "K", "D", "A", "LH", "GPM", "XPM", "NW", "Stun", "Heal", "T.Dmg", "Camps", "Runes", "FB", "Счёт"]
+_HEADERS = ["#", "Герой", "Игрок", "Ур.", "K", "D", "A", "LH", "GPM", "XPM", "NW", "Stun", "Heal", "T.Dmg", "Camps", "Runes", "FB", "H.Dmg", "D.Taken", "Ward G", "Smoke G", "Dust G", "Счёт"]
 
 _MEDALS = {"winner_top1": ("1", theme.GOLD), "winner_top2": ("2", theme.SILVER), "loser_top1": ("3", theme.BRONZE)}
 
@@ -45,6 +45,11 @@ _BREAKDOWN_LABELS = {
     "camps": "CampsStacked",
     "runes": "RunePickups",
     "first_blood": "FirstBlood",
+    "hero_damage": "HeroDamage",
+    "damage_taken": "DamageTaken",
+    "gold_spent_wards": "GoldSpentWards",
+    "gold_spent_smoke": "GoldSpentSmoke",
+    "gold_spent_dust": "GoldSpentDust",
 }
 
 _PLAYER_ATTRS = {
@@ -54,12 +59,22 @@ _PLAYER_ATTRS = {
     "camps": "camps_stacked",
     "runes": "rune_pickups",
     "first_blood": "first_blood",
+    "hero_damage": "hero_damage",
+    "damage_taken": "damage_taken",
+    "gold_spent_wards": "gold_spent_wards",
+    "gold_spent_smoke": "gold_spent_smoke",
+    "gold_spent_dust": "gold_spent_dust",
 }
 
 _FORMULA_COLS = {11: "stun", 12: "healing", 13: "tower_damage", 14: "camps", 15: "runes", 16: "first_blood"}
 
 _FB_COL = 16
-_SCORE_COL = 17
+_HERO_DAMAGE_COL = 17
+_DAMAGE_TAKEN_COL = 18
+_GOLD_WARDS_COL = 19
+_GOLD_SMOKE_COL = 20
+_GOLD_DUST_COL = 21
+_SCORE_COL = 22
 
 
 def fmt_num(value: float) -> str:
@@ -226,6 +241,11 @@ class StatsTable(QTableWidget):
             str(player.camps_stacked),
             str(player.rune_pickups),
             "Да" if player.first_blood else "-",
+            str(player.hero_damage),
+            str(player.damage_taken),
+            str(player.gold_spent_wards),
+            str(player.gold_spent_smoke),
+            str(player.gold_spent_dust),
             f"{score:.2f}",
         ]
         align = [Qt.AlignmentFlag.AlignCenter] * len(values)

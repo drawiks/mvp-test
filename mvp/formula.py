@@ -23,6 +23,11 @@ STATS: tuple[tuple[str, str], ...] = (
     ("camps_stacked", "Camps Stacked"),
     ("rune_pickups", "Rune Pickups"),
     ("first_blood", "First Blood"),
+    ("hero_damage", "Hero Dmg"),
+    ("damage_taken", "Dmg Taken"),
+    ("gold_spent_wards", "Wards Gold"),
+    ("gold_spent_smoke", "Smoke Gold"),
+    ("gold_spent_dust", "Dust Gold"),
 )
 
 STAT_TOKENS: set[str] = {token for token, _ in STATS}
@@ -63,6 +68,11 @@ DEFAULT_LINEAR_WEIGHTS: dict[str, float] = {
     "camps": 0.5,
     "runes": 0.2,
     "first_blood": 1.0,
+    "hero_damage": 0.0,
+    "damage_taken": 0.0,
+    "gold_spent_wards": 0.0,
+    "gold_spent_smoke": 0.0,
+    "gold_spent_dust": 0.0,
 }
 
 
@@ -126,6 +136,11 @@ _EXPR_TERMS: tuple[tuple[str, str], ...] = (
     ("camps_stacked", "camps"),
     ("rune_pickups", "runes"),
     ("first_blood", "first_blood"),
+    ("hero_damage", "hero_damage"),
+    ("damage_taken", "damage_taken"),
+    ("gold_spent_wards", "gold_spent_wards"),
+    ("gold_spent_smoke", "gold_spent_smoke"),
+    ("gold_spent_dust", "gold_spent_dust"),
 )
 
 _WEIGHT_BY_TOKEN: dict[str, str] = {token: key for token, key in _EXPR_TERMS}

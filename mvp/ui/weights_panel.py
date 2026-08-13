@@ -34,6 +34,8 @@ _GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
             ("assists", "Assists"),
             ("first_blood", "First Blood"),
             ("healing", "Healing"),
+            ("hero_damage", "Hero Damage"),
+            ("damage_taken", "Damage Taken"),
         ),
     ),
     (
@@ -51,6 +53,9 @@ _GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
             ("tower_damage", "Tower Damage"),
             ("camps", "Camps Stacked"),
             ("runes", "Rune Pickups"),
+            ("gold_spent_wards", "Wards Gold"),
+            ("gold_spent_smoke", "Smoke Gold"),
+            ("gold_spent_dust", "Dust Gold"),
         ),
     ),
 )
@@ -69,6 +74,11 @@ _FORMULA_ORDER = (
     ("camps", "Camps"),
     ("runes", "Runes"),
     ("first_blood", "FB"),
+    ("hero_damage", "HeroDmg"),
+    ("damage_taken", "DmgTaken"),
+    ("gold_spent_wards", "WardsG"),
+    ("gold_spent_smoke", "SmokeG"),
+    ("gold_spent_dust", "DustG"),
 )
 
 _WEIGHT_KEYS = {key for group, fields in _GROUPS for key, _ in fields}

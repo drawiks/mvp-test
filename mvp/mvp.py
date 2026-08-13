@@ -20,6 +20,11 @@ class Weights:
     camps: float = 0.5
     runes: float = 0.2
     first_blood: float = 1.0
+    hero_damage: float = 0.0
+    damage_taken: float = 0.0
+    gold_spent_wards: float = 0.0
+    gold_spent_smoke: float = 0.0
+    gold_spent_dust: float = 0.0
 
 
 DEFAULT_WEIGHTS = Weights()
@@ -49,6 +54,11 @@ def player_vars(player: Player) -> dict[str, float]:
         "camps_stacked": float(player.camps_stacked),
         "rune_pickups": float(player.rune_pickups),
         "first_blood": 1.0 if player.first_blood else 0.0,
+        "hero_damage": float(player.hero_damage),
+        "damage_taken": float(player.damage_taken),
+        "gold_spent_wards": float(player.gold_spent_wards),
+        "gold_spent_smoke": float(player.gold_spent_smoke),
+        "gold_spent_dust": float(player.gold_spent_dust),
     }
 
 
@@ -72,6 +82,11 @@ def score_breakdown(player: Player, weights: Weights = DEFAULT_WEIGHTS) -> dict[
         "camps": player.camps_stacked * weights.camps,
         "runes": player.rune_pickups * weights.runes,
         "first_blood": weights.first_blood * (1.0 if player.first_blood else 0.0),
+        "hero_damage": player.hero_damage * weights.hero_damage,
+        "damage_taken": player.damage_taken * weights.damage_taken,
+        "gold_spent_wards": player.gold_spent_wards * weights.gold_spent_wards,
+        "gold_spent_smoke": player.gold_spent_smoke * weights.gold_spent_smoke,
+        "gold_spent_dust": player.gold_spent_dust * weights.gold_spent_dust,
     }
 
 

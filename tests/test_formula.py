@@ -138,7 +138,21 @@ def test_linear_to_expression_equivalence() -> None:
 
 def test_expression_to_weights_roundtrip() -> None:
     expr = linear_to_expression(DEFAULT_LINEAR_WEIGHTS)
-    assert expression_to_weights(expr) == DEFAULT_LINEAR_WEIGHTS
+    expected = {k: v for k, v in DEFAULT_LINEAR_WEIGHTS.items() if v != 0.0 or k in ("deaths", "deaths_base")}
+    assert expression_to_weights(expr) == expected
+
+
+def test_new_stats_in_expression() -> None:
+    expr = "hero_damage * 0.001 + damage_taken * 0.0005 + gold_spent_wards * 0.01 + gold_spent_smoke * 0.02 + gold_spent_dust * 0.03"
+    assert validate_expression(expr) is None
+    vars_ = {
+        "hero_damage": 20000,
+        "damage_taken": 15000,
+        "gold_spent_wards": 500,
+        "gold_spent_smoke": 100,
+        "gold_spent_dust": 50,
+    }
+    assert safe_eval(expr, vars_) == pytest.approx(20.0 + 7.5 + 5.0 + 2.0 + 1.5)
 
 
 def test_expression_to_weights_sparse() -> None:
