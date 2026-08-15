@@ -25,6 +25,10 @@ class Weights:
     gold_spent_wards: float = 0.0
     gold_spent_smoke: float = 0.0
     gold_spent_dust: float = 0.0
+    buffs_duration: float = 0.0
+    save: float = 0.0
+    purge: float = 0.0
+    shield_uptime: float = 0.0
 
 
 DEFAULT_WEIGHTS = Weights()
@@ -59,6 +63,10 @@ def player_vars(player: Player) -> dict[str, float]:
         "gold_spent_wards": float(player.gold_spent_wards),
         "gold_spent_smoke": float(player.gold_spent_smoke),
         "gold_spent_dust": float(player.gold_spent_dust),
+        "buffs_duration": float(player.buffs_duration),
+        "save": float(player.save),
+        "purge": float(player.purge),
+        "shield_uptime": float(player.shield_uptime),
     }
 
 
@@ -87,6 +95,10 @@ def score_breakdown(player: Player, weights: Weights = DEFAULT_WEIGHTS) -> dict[
         "gold_spent_wards": player.gold_spent_wards * weights.gold_spent_wards,
         "gold_spent_smoke": player.gold_spent_smoke * weights.gold_spent_smoke,
         "gold_spent_dust": player.gold_spent_dust * weights.gold_spent_dust,
+        "buffs_duration": player.buffs_duration * weights.buffs_duration,
+        "save": player.save * weights.save,
+        "purge": player.purge * weights.purge,
+        "shield_uptime": player.shield_uptime * weights.shield_uptime,
     }
 
 

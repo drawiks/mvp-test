@@ -32,6 +32,10 @@ class Player:
     creeps_stacked: int = 0
     rune_pickups: int = 0
     first_blood: bool = False
+    buffs_duration: float = 0.0
+    save: float = 0.0
+    purge: float = 0.0
+    shield_uptime: float = 0.0
 
 
 @dataclass

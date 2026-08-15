@@ -28,6 +28,10 @@ STATS: tuple[tuple[str, str], ...] = (
     ("gold_spent_wards", "Wards Gold"),
     ("gold_spent_smoke", "Smoke Gold"),
     ("gold_spent_dust", "Dust Gold"),
+    ("buffs_duration", "Buffs Duration"),
+    ("save", "Save Uptime"),
+    ("purge", "Purge Uptime"),
+    ("shield_uptime", "Shield Uptime"),
 )
 
 STAT_TOKENS: set[str] = {token for token, _ in STATS}
@@ -73,6 +77,10 @@ DEFAULT_LINEAR_WEIGHTS: dict[str, float] = {
     "gold_spent_wards": 0.0,
     "gold_spent_smoke": 0.0,
     "gold_spent_dust": 0.0,
+    "buffs_duration": 0.0,
+    "save": 0.0,
+    "purge": 0.0,
+    "shield_uptime": 0.0,
 }
 
 
@@ -123,6 +131,28 @@ def standard_preset() -> Preset:
     )
 
 
+STANDARD_V2_FORMULA = (
+    "kills * 0.2 + assists * 0.15 + last_hits * 0.003 + xpm * 0.003"
+    " + tower_damage * 0.0007 + hero_damage * 0.00005"
+    " + (damage_taken / max(deaths, 1)) * 0.00015"
+    " + min(healing, 8000) * 0.001 + stun_duration * 0.02"
+    " + camps_stacked * 0.15 + rune_pickups * 0.1"
+    " + min(save + purge + shield_uptime, 500) * 0.015"
+    " + min(buffs_duration, 600) * 0.008"
+    " + gold_spent_wards * 0.0015 + gold_spent_smoke * 0.0015 + gold_spent_dust * 0.0015"
+    " + first_blood * 1 + (3 - deaths * 0.3)"
+)
+
+
+def standard_v2_preset() -> Preset:
+    return Preset(
+        id="standard_v2",
+        name="Стандартная v2",
+        kind="expression",
+        expression=STANDARD_V2_FORMULA,
+    )
+
+
 _EXPR_TERMS: tuple[tuple[str, str], ...] = (
     ("kills", "kills"),
     ("deaths", "deaths"),
@@ -141,6 +171,10 @@ _EXPR_TERMS: tuple[tuple[str, str], ...] = (
     ("gold_spent_wards", "gold_spent_wards"),
     ("gold_spent_smoke", "gold_spent_smoke"),
     ("gold_spent_dust", "gold_spent_dust"),
+    ("buffs_duration", "buffs_duration"),
+    ("save", "save"),
+    ("purge", "purge"),
+    ("shield_uptime", "shield_uptime"),
 )
 
 _WEIGHT_BY_TOKEN: dict[str, str] = {token: key for token, key in _EXPR_TERMS}
@@ -174,6 +208,60 @@ def _flatten_add(node) -> list[ast.AST]:
     return [node]
 
 
+def _extract_weight_term(term: ast.AST, weights: dict[str, float]) -> bool:
+    """Извлекает из слагаемого линейный коэффициент в weights.
+
+    Возвращает True, если слагаемое линейно и обработано, False — если нет
+    (min/max/деление и прочие нелинейные формы). Накопившееся в weights
+    слагаемое проверяет на дубликаты через "in".
+    """
+    value = _const_value(term)
+    if value is not None:
+        if "deaths_base" in weights:
+            return False
+        weights["deaths_base"] = value
+        return True
+    if isinstance(term, ast.BinOp) and type(term.op) is ast.Mult:
+        left, right = term.left, term.right
+        left_val = _const_value(left)
+        right_val = _const_value(right)
+        if isinstance(left, ast.Name) and right_val is not None:
+            name, value = left.id, right_val
+        elif isinstance(right, ast.Name) and left_val is not None:
+            name, value = right.id, left_val
+        else:
+            return False
+        if name not in _WEIGHT_BY_TOKEN:
+            return False
+        key = _WEIGHT_BY_TOKEN[name]
+        if key == "deaths" or key in weights:
+            return False
+        weights[key] = value
+        return True
+    if (
+        isinstance(term, ast.BinOp)
+        and type(term.op) is ast.Sub
+        and _const_value(term.left) is not None
+        and isinstance(term.right, ast.BinOp)
+        and type(term.right.op) is ast.Mult
+    ):
+        sub_left, sub_right = term.right.left, term.right.right
+        if isinstance(sub_left, ast.Name) and _const_value(sub_right) is not None:
+            if sub_left.id != "deaths" or "deaths" in weights or "deaths_base" in weights:
+                return False
+            weights["deaths_base"] = _const_value(term.left)
+            weights["deaths"] = _const_value(sub_right)
+            return True
+        if isinstance(sub_right, ast.Name) and _const_value(sub_left) is not None:
+            if sub_right.id != "deaths" or "deaths" in weights or "deaths_base" in weights:
+                return False
+            weights["deaths_base"] = _const_value(term.left)
+            weights["deaths"] = _const_value(sub_left)
+            return True
+        return False
+    return False
+
+
 def expression_to_weights(expression: str) -> dict[str, float] | None:
     """Извлекает коэффициенты из выражения вида 'kills * 0.3 + (3 - deaths * 0.3)'.
 
@@ -185,58 +273,28 @@ def expression_to_weights(expression: str) -> dict[str, float] | None:
         return None
     weights: dict[str, float] = {}
     for term in _flatten_add(body):
-        value = _const_value(term)
-        if value is not None:
-            if "deaths_base" in weights:
-                return None
-            weights["deaths_base"] = value
-            continue
-        if isinstance(term, ast.BinOp) and type(term.op) is ast.Mult:
-            left, right = term.left, term.right
-            left_val = _const_value(left)
-            right_val = _const_value(right)
-            if isinstance(left, ast.Name) and right_val is not None:
-                name, value = left.id, right_val
-            elif isinstance(right, ast.Name) and left_val is not None:
-                name, value = right.id, left_val
-            else:
-                return None
-            if name not in _WEIGHT_BY_TOKEN:
-                return None
-            key = _WEIGHT_BY_TOKEN[name]
-            if key == "deaths":
-                return None
-            if key in weights:
-                return None
-            weights[key] = value
-            continue
-        if (
-            isinstance(term, ast.BinOp)
-            and type(term.op) is ast.Sub
-            and _const_value(term.left) is not None
-            and isinstance(term.right, ast.BinOp)
-            and type(term.right.op) is ast.Mult
-        ):
-            sub_left, sub_right = term.right.left, term.right.right
-            if isinstance(sub_left, ast.Name) and _const_value(sub_right) is not None:
-                if sub_left.id != "deaths":
-                    return None
-                if "deaths_base" in weights or "deaths" in weights:
-                    return None
-                weights["deaths_base"] = _const_value(term.left)
-                weights["deaths"] = _const_value(sub_right)
-                continue
-            if isinstance(sub_right, ast.Name) and _const_value(sub_left) is not None:
-                if sub_right.id != "deaths":
-                    return None
-                if "deaths_base" in weights or "deaths" in weights:
-                    return None
-                weights["deaths_base"] = _const_value(term.left)
-                weights["deaths"] = _const_value(sub_left)
-                continue
+        if not _extract_weight_term(term, weights):
             return None
-        return None
     return weights or None
+
+
+def split_expression(expression: str) -> tuple[dict[str, float], str]:
+    """Разбивает выражение на (линейные веса, нелинейный хвост).
+
+    Линейные слагаемые вида 'token * w' / '(база - deaths * w)' извлекаются
+    в веса, остальное (min/max/деление и пр.) остаётся строкой-хвостом.
+    """
+    try:
+        body = ast.parse(expression, mode="eval").body
+    except SyntaxError:
+        return {}, expression.strip()
+    weights: dict[str, float] = {}
+    tail: list[str] = []
+    for term in _flatten_add(body):
+        if _extract_weight_term(term, weights):
+            continue
+        tail.append(ast.unparse(term))
+    return weights, " + ".join(tail)
 
 
 _FUNCS = {
@@ -313,8 +371,11 @@ def safe_eval(expression: str, variables: dict[str, float]) -> float:
 class PresetStore:
     def __init__(self, path: Path):
         self._path = Path(path)
-        self._presets: dict[str, Preset] = {"standard": standard_preset()}
-        self.active_id = "standard"
+        self._presets: dict[str, Preset] = {
+            "standard": standard_preset(),
+            "standard_v2": standard_v2_preset(),
+        }
+        self.active_id = "standard_v2"
         self._load()
 
     def _load(self) -> None:

@@ -59,13 +59,29 @@ def parse_result(raw: str | bytes) -> Result:
     for item in data["players"]:
         if not isinstance(item, dict):
             continue
+        item = dict(item)
         item.setdefault("team", "unknown")
+        buff_sources = item.pop("buff_sources", None)
+        item.pop("stun_sources", None)
+        item["save"] = _sum_buff_value(buff_sources, "save")
+        item["purge"] = _sum_buff_value(buff_sources, "purge")
+        item["shield_uptime"] = _sum_buff_value(buff_sources, "shield")
         players.append(Player(**item))
     return Result(
         match_id=int(data.get("match_id") or 0),
         duration_sec=int(data.get("duration_sec") or 0),
         radiant_win=bool(data.get("radiant_win", True)),
         players=players,
+    )
+
+
+def _sum_buff_value(buff_sources, category: str) -> float:
+    if not isinstance(buff_sources, list):
+        return 0.0
+    return sum(
+        float(b.get("value", 0.0))
+        for b in buff_sources
+        if isinstance(b, dict) and b.get("category") == category
     )
 
 

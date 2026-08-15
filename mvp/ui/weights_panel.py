@@ -19,8 +19,8 @@ from ..formula import (
     DEFAULT_LINEAR_WEIGHTS,
     Preset,
     PresetStore,
-    expression_to_weights,
     linear_to_expression,
+    split_expression,
 )
 from ..mvp import Weights
 
@@ -56,6 +56,10 @@ _GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
             ("gold_spent_wards", "Wards Gold"),
             ("gold_spent_smoke", "Smoke Gold"),
             ("gold_spent_dust", "Dust Gold"),
+            ("buffs_duration", "Buffs Duration"),
+            ("save", "Save Uptime"),
+            ("purge", "Purge Uptime"),
+            ("shield_uptime", "Shield Uptime"),
         ),
     ),
 )
@@ -79,6 +83,10 @@ _FORMULA_ORDER = (
     ("gold_spent_wards", "WardsG"),
     ("gold_spent_smoke", "SmokeG"),
     ("gold_spent_dust", "DustG"),
+    ("buffs_duration", "BuffsDur"),
+    ("save", "SaveUp"),
+    ("purge", "PurgeUp"),
+    ("shield_uptime", "ShieldUp"),
 )
 
 _WEIGHT_KEYS = {key for group, fields in _GROUPS for key, _ in fields}
@@ -222,8 +230,8 @@ class WeightsPanel(QWidget):
     def _apply_preset(self) -> None:
         preset = self._store.active()
         if preset.kind == "expression":
-            weights = expression_to_weights(preset.expression)
-            if weights is None:
+            weights, tail = split_expression(preset.expression)
+            if not weights:
                 self._toggle.setChecked(False)
                 self._toggle.setEnabled(False)
                 self._body.setVisible(False)
@@ -237,7 +245,7 @@ class WeightsPanel(QWidget):
             self._expr_widget.setVisible(True)
             self._expr_text.setText(preset.expression)
             self._set_spinboxes(weights)
-            self._update_formula(self._weights_from_mapping(weights))
+            self._update_formula(self._weights_from_mapping(weights), tail)
             return
         self._toggle.setEnabled(True)
         self._toggle.setChecked(True)
@@ -267,9 +275,11 @@ class WeightsPanel(QWidget):
     def _on_toggle(self, checked: bool) -> None:
         self._toggle.setArrowType(Qt.ArrowType.DownArrow if checked else Qt.ArrowType.RightArrow)
         preset = self._store.active()
-        if preset.kind == "expression" and expression_to_weights(preset.expression) is None:
-            self._body.setVisible(False)
-            return
+        if preset.kind == "expression":
+            weights, _ = split_expression(preset.expression)
+            if not weights:
+                self._body.setVisible(False)
+                return
         self._body.setVisible(checked)
 
     def _on_value_changed(self, _value: float) -> None:
@@ -280,20 +290,26 @@ class WeightsPanel(QWidget):
             preset.weights.update({key: spin.value() for key, spin in self._spinboxes.items()})
             self._store.save()
         elif preset.kind == "expression":
-            weights = expression_to_weights(preset.expression)
-            if weights is None:
+            weights, tail = split_expression(preset.expression)
+            if not weights:
                 self.changed.emit()
                 return
             weights.update({key: spin.value() for key, spin in self._spinboxes.items()})
             preset.expression = linear_to_expression(weights)
+            if tail:
+                preset.expression += " + " + tail
             self._store.save()
             self._expr_text.setText(preset.expression)
-        self._update_formula(self._weights_from_mapping(
-            preset.weights if preset.kind == "linear" else expression_to_weights(preset.expression)
-        ))
+        weights = (
+            preset.weights
+            if preset.kind == "linear"
+            else split_expression(preset.expression)[0]
+        )
+        tail = "" if preset.kind == "linear" else split_expression(preset.expression)[1]
+        self._update_formula(self._weights_from_mapping(weights), tail)
         self.changed.emit()
 
-    def _update_formula(self, weights: Weights) -> None:
+    def _update_formula(self, weights: Weights, tail: str = "") -> None:
         parts = []
         for key, label in _FORMULA_ORDER:
             value = getattr(weights, key)
@@ -303,14 +319,18 @@ class WeightsPanel(QWidget):
             if value > 0 and key not in ("deaths", "deaths_base"):
                 text = "+" + text
             parts.append(text)
-        self._formula.setText("Счёт = " + " ".join(parts))
+        text = "Счёт = " + " ".join(parts)
+        if tail:
+            text += "  +  " + tail
+        self._formula.setText(text)
 
     def reset(self) -> None:
         preset = self._store.active()
         if preset.kind == "expression":
-            if expression_to_weights(preset.expression) is None:
-                return
+            _, tail = split_expression(preset.expression)
             preset.expression = linear_to_expression(DEFAULT_LINEAR_WEIGHTS)
+            if tail:
+                preset.expression += " + " + tail
         else:
             preset.weights.update(DEFAULT_LINEAR_WEIGHTS)
         self._store.save()

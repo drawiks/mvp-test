@@ -101,6 +101,24 @@ def test_standard_preset_defaults() -> None:
     assert standard_preset().kind == "linear"
 
 
+def test_standard_v2_preset_expression_valid() -> None:
+    from mvp.formula import STANDARD_V2_FORMULA, standard_v2_preset
+
+    preset = standard_v2_preset()
+    assert preset.kind == "expression"
+    assert preset.id == "standard_v2"
+    assert preset.name == "Стандартная v2"
+    assert validate_expression(preset.expression) is None
+    assert validate_expression(STANDARD_V2_FORMULA) is None
+    assert expression_to_weights(STANDARD_V2_FORMULA) is None
+
+
+def test_store_has_standard_v2_builtin(tmp_path) -> None:
+    store = PresetStore(tmp_path / "formulas.json")
+    assert store.get("standard_v2") is not None
+    assert store.active().id == "standard_v2"
+
+
 def test_linear_to_expression_valid() -> None:
     expr = linear_to_expression(DEFAULT_LINEAR_WEIGHTS)
     assert validate_expression(expr) is None
@@ -194,3 +212,58 @@ def test_expression_to_weights_duplicate_constant() -> None:
     assert expression_to_weights("kills * 2 + 3 + 5") is None
     assert expression_to_weights("3 + kills * 2") == {"deaths_base": 3.0, "kills": 2.0}
     assert expression_to_weights("3 + (4 - deaths * 0.3)") is None
+
+
+def test_split_expression_v2() -> None:
+    from mvp.formula import STANDARD_V2_FORMULA, split_expression
+
+    weights, tail = split_expression(STANDARD_V2_FORMULA)
+    assert weights["kills"] == 0.2
+    assert weights["deaths_base"] == 3.0
+    assert weights["deaths"] == 0.3
+    assert weights["first_blood"] == 1.0
+    assert "min(healing, 8000)" in tail
+    assert "max(deaths, 1)" in tail
+    assert "min(buffs_duration, 600)" in tail
+
+
+def test_split_expression_roundtrip_v2() -> None:
+    from mvp.formula import STANDARD_V2_FORMULA, linear_to_expression, split_expression
+    from mvp.mvp import compute_score
+    from mvp.model import Player
+
+    weights, tail = split_expression(STANDARD_V2_FORMULA)
+    rebuilt = linear_to_expression(weights)
+    if tail:
+        rebuilt += " + " + tail
+    assert validate_expression(rebuilt) is None
+
+    player = Player(
+        name="P", kills=10, deaths=4, assists=7, last_hits=250, gpm=580,
+        xpm=640, healing=9000.0, hero_damage=20000, damage_taken=15000,
+        tower_damage=3200.0, stun_duration=45.0, camps_stacked=9,
+        rune_pickups=5, first_blood=True, gold_spent_wards=500,
+        gold_spent_smoke=100, gold_spent_dust=50, buffs_duration=700.0,
+        save=300.0, purge=120.0, shield_uptime=40.0,
+    )
+    from mvp.formula import Preset
+
+    a = compute_score(player, Preset(id="a", name="A", kind="expression", expression=STANDARD_V2_FORMULA))
+    b = compute_score(player, Preset(id="b", name="B", kind="expression", expression=rebuilt))
+    assert a == pytest.approx(b, abs=1e-9)
+
+
+def test_split_expression_linear_only() -> None:
+    from mvp.formula import split_expression
+
+    weights, tail = split_expression("kills * 0.3 + (3 - deaths * 0.3) + assists * 0.15")
+    assert tail == ""
+    assert weights["kills"] == 0.3
+    assert weights["assists"] == 0.15
+
+
+def test_split_expression_empty() -> None:
+    from mvp.formula import split_expression
+
+    assert split_expression("") == ({}, "")
+    assert split_expression("   ") == ({}, "")

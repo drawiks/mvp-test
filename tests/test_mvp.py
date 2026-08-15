@@ -134,3 +134,53 @@ def test_expression_preset_select_mvps(result: Result) -> None:
     assert mvps["winner_top2"].team == "dire"
     assert mvps["loser_top1"].team == "radiant"
     assert compute_score(mvps["winner_top1"], preset) > 0
+
+
+def test_standard_v2_compute_score() -> None:
+    from mvp.formula import standard_v2_preset
+    from mvp.model import Player
+
+    player = Player(
+        kills=10,
+        deaths=4,
+        assists=7,
+        last_hits=250,
+        gpm=580,
+        xpm=640,
+        healing=9000.0,
+        hero_damage=20000,
+        damage_taken=15000,
+        tower_damage=3200.0,
+        stun_duration=45.0,
+        camps_stacked=9,
+        rune_pickups=5,
+        first_blood=True,
+        gold_spent_wards=500,
+        gold_spent_smoke=100,
+        gold_spent_dust=50,
+        buffs_duration=700.0,
+        save=300.0,
+        purge=120.0,
+        shield_uptime=40.0,
+    )
+    score = compute_score(player, standard_v2_preset())
+    assert score == pytest.approx(
+        10 * 0.2
+        + 7 * 0.15
+        + 250 * 0.003
+        + 640 * 0.003
+        + 3200 * 0.0007
+        + 20000 * 0.00005
+        + (15000 / max(4, 1)) * 0.00015
+        + min(9000, 8000) * 0.001
+        + 45 * 0.02
+        + 9 * 0.15
+        + 5 * 0.1
+        + min(300 + 120 + 40, 500) * 0.015
+        + min(700, 600) * 0.008
+        + 500 * 0.0015
+        + 100 * 0.0015
+        + 50 * 0.0015
+        + 1 * 1
+        + (3 - 4 * 0.3)
+    )
