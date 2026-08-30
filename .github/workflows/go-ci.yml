@@ -1,0 +1,55 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.27
+      - run: go vet ./...
+      - run: go test ./...
+
+  windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.27
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build          # produces frontend/dist (embedded via //go:embed in main.go)
+        working-directory: frontend
+      - name: Install mingw-w64
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+      - name: Install Wails
+        run: go install github.com/wails/app/v2/cmd/wails@latest
+      - name: Build Windows exe
+        run: wails build -platform windows/amd64 -clean -o mvp.exe
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mvp-windows-amd64
+          path: build/bin/mvp.exe
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build

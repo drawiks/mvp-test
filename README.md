@@ -1,99 +1,104 @@
-# MVP Calculator
+# Wails + Vite + React + Tailwind CSS v4 + shadcn/ui + TypeScript
 
-GUI-программа для Dota 2: разбирает реплей (`.dem` / `.dem.bz2` / `.dem.zst`) через
-[`manta_cli`](https://github.com/drawiks/manta-cli) и высчитывает MVP по формуле.
+A modern Wails template featuring the latest technologies for building beautiful desktop applications.
 
-Одновременно показываются **три** игрока:
+## 🚀 Features
 
-- 🥇 лучший игрок победившей команды;
-- 🥈 второй лучший игрок победившей команды;
-- 🥉 лучший игрок проигравшей команды.
+- **[Wails v2.11.0](https://wails.io/)** - Build desktop apps using Go & Web Technologies
+- **[React 18.3](https://react.dev/)** - Modern React with hooks
+- **[TypeScript 5.7](https://www.typescriptlang.org/)** - Type safety and better DX
+- **[Vite 5.4](https://vitejs.dev/)** - Lightning-fast HMR and build tool
+- **[Tailwind CSS v4](https://tailwindcss.com/)** - Latest Tailwind with new Vite plugin
+- **[shadcn/ui](https://ui.shadcn.com/)** - Beautiful, accessible component library
+- **[ESLint 9](https://eslint.org/)** - Code quality with flat config
+- **Cross-platform build scripts** - Easy builds for Windows, macOS, and Linux
 
-## Формула
+## 📦 Installation
 
-```
-score = Kills*0.3
-      + (3.0 - Deaths*0.3)
-      + Assists*0.15
-      + LastHits*0.003
-      + GPM*0.002
-      + XPM*0.002
-      + StunDuration*0.05
-      + Healing*0.004
-      + TowerDamage*0.001
-      + CampsStacked*0.5
-      + RunePickups*0.2
-      + FirstBlood*1.0
+```bash
+wails init -n myapp -t https://github.com/Mahcks/wails-vite-react-tailwind-shadcnui-ts
+cd myapp
 ```
 
-Все коэффициенты редактируются в панели справа **на лету** (для тестов на реальных
-матчах): результат пересчитывается мгновенно на уже загруженном реплее, повторно
-запускать разбор не нужно. Значения сохраняются между запусками (`QSettings`).
+## 🛠️ Development
 
-## Локальный запуск (Linux/dev)
+Run the app in development mode with hot reload:
 
-```sh
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m mvp
+```bash
+wails dev
 ```
 
-Можно сразу открыть реплей: `.venv/bin/python -m mvp /path/to/match.dem`.
+The frontend dev server runs on http://localhost:5173 with Vite's fast HMR.
 
-Приложение ищет бинарник `manta_cli` в таком порядке:
+## 🏗️ Building
 
-1. путь, указанный вручную в *Настройки → Путь к manta_cli…*;
-2. рядом с запускаемым приложением (для собранного `.exe` — рядом с ним);
-3. в `PATH`.
-
-## Тесты
-
-```sh
-.venv/bin/python -m pytest -q
+### Current Platform
+```bash
+wails build
+# or
+./scripts/build.sh
 ```
 
-Проверяется формула на эталонном реплее (`tests/fixtures/match.json`), выбор трёх
-MVP, разбор JSON и работа кастомных коэффициентов.
+### Cross-Platform Builds
+```bash
+# Build for all platforms
+./scripts/build-all.sh
 
-## Сборка `.exe` через Nuitka
-
-`.exe` собирается автоматически в **GitHub Actions** (вариант без установки
-Windows): GitHub запускает Windows-раннер, ставит Python 3.12 + PyQt6 + Nuitka,
-собирает `manta_cli.exe` из Go-исходников и упаковывает всё в один файл.
-
-Workflow: [`.github/workflows/build-exe.yml`](.github/workflows/build-exe.yml).
-Триггеры: push в `main` или запуск вручную (Actions → Run workflow).
-
-Шаги:
-
-1. Создай репозиторий на GitHub и подключи его:
-
-   ```sh
-   git remote add origin https://github.com/<you>/mvp-test.git
-   git branch -M main
-   git push -u origin main
-   ```
-
-2. Открой **Actions → Build Windows EXE → Run workflow** (или сделай push).
-3. В конце джобы скачай артефакт `MVP_Calculator-windows` — это и есть готовый
-   `MVP_Calculator.exe` (внутри уже лежит `manta_cli.exe`).
-
-### Сборка вручную (Linux, для проверки команды)
-
-```sh
-pip install nuitka zstandard
-# нужен patchelf (0.17.x), например: pacman -S patchelf / apt install patchelf
-cp /path/to/manta_cli ./manta_cli
-python -m nuitka --mode=onefile --enable-plugin=pyqt6 \
-  --include-data-files=manta_cli=manta_cli \
-  --output-filename=MVP_Calculator --output-dir=dist \
-  mvp/__main__.py
+# Individual platforms
+./scripts/build-windows.sh      # Windows AMD64
+./scripts/build-linux.sh         # Linux AMD64
+./scripts/build-macos-arm.sh     # macOS Apple Silicon
+./scripts/build-macos-intel.sh   # macOS Intel
+./scripts/build-macos-universal.sh  # macOS Universal Binary
 ```
 
-### Заметки
+Built applications will be in `build/bin/`
 
-- `--onefile` даёт один исполняемый файл; антивирусы иногда ложно-положительно
-  реагируют на self-extracting исполняемые файлы. Если это мешает — соберите с
-  `--mode=standalone` (папка `dist/MVP_Calculator.dist/`) и раздавайте папкой.
-- MinGW64-компилятор Nuitka не работает с Python 3.13+; в CI используется
-  Python 3.12 + MSVC (предустановлен на `windows-latest`).
+## 🎨 shadcn/ui Components
+
+This template includes pre-configured shadcn/ui components:
+- Button
+- Input
+- Label
+- Card
+
+Add more components:
+```bash
+npx shadcn@latest add [component-name]
+```
+
+Browse components at [ui.shadcn.com](https://ui.shadcn.com/)
+
+## 📁 Project Structure
+
+```
+.
+├── app.tmpl.go              # Main application logic
+├── main.tmpl.go             # Entry point
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx          # Main React component
+│   │   ├── components/ui/   # shadcn/ui components
+│   │   └── lib/utils.ts     # Utility functions
+│   ├── vite.config.ts       # Vite configuration
+│   └── package.json         # Frontend dependencies
+└── scripts/                 # Build scripts
+```
+
+## 🔧 Configuration
+
+Project configuration is in `wails.json` (auto-generated on `wails init`). 
+
+See [Wails documentation](https://wails.io/docs/reference/project-config) for all options.
+
+## 📚 Learn More
+
+- [Wails Documentation](https://wails.io/docs/introduction)
+- [React Documentation](https://react.dev/)
+- [Vite Documentation](https://vitejs.dev/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/)
+- [shadcn/ui Documentation](https://ui.shadcn.com/)
+
+## 📝 License
+
+This template is available as open source under the terms of the MIT License.

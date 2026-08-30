@@ -1,32 +1,37 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
-
-# Tests
-.pytest_cache/
-.coverage
-
-# Nuitka build artifacts
-build/
-dist/
-*.dist/
-*.onefile-build/
-*.build/
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
 *.exe
-*.bin
-manta_cli
-manta_cli.exe
-manta_cli_arm64
+*.exe~
+*.dll
+*.so
+*.dylib
 
-# IDE / OS
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+
+# Editor/IDE
 .idea/
-.vscode/
-*.swp
+# .vscode/
 
-# Replays and local data
-*.dem
-*.dem.bz2
-*.dem.zst
+
+build/bin
+node_modules
+frontend/dist
