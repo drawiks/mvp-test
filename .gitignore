@@ -30,3 +30,7 @@ manta_cli_arm64
 *.dem
 *.dem.bz2
 *.dem.zst
+
+# ML dataset and artifacts
+data/
+ml/artifact/
