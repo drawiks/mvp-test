@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# Local agent memory / session notes
+AGENTS.md
+
 # Editor/IDE
 .idea/
 # .vscode/

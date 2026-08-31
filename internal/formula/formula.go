@@ -34,7 +34,7 @@ var Stats = []Stat{
 	{"taunt_duration", "Taunt"}, {"silence_duration", "Silence"},
 	{"break_duration", "Break"}, {"disarm_duration", "Disarm"},
 	{"heal_duration", "Heal Time"}, {"heal_value", "Heal Value"},
-	{"gold_lost", "Gold Lost"},
+	{"gold_lost", "Gold Lost"}, {"time_dead", "Time Dead"},
 }
 
 var (
@@ -66,7 +66,7 @@ func init() {
 		{"taunt_duration", "taunt_duration"}, {"silence_duration", "silence_duration"},
 		{"break_duration", "break_duration"}, {"disarm_duration", "disarm_duration"},
 		{"heal_duration", "heal_duration"}, {"heal_value", "heal_value"},
-		{"gold_lost", "gold_lost"},
+		{"gold_lost", "gold_lost"}, {"time_dead", "time_dead"},
 	}
 	exprTerms = terms
 	for _, t := range terms {
@@ -386,11 +386,18 @@ func Eval(expression string, vars map[string]float64) (float64, error) {
 	if err := Validate(expression, allowed); err != nil {
 		return 0, err
 	}
+	return run(expression, vars)
+}
+
+// run compiles and evaluates an expression against a variable map, reporting
+// division by zero (Inf/NaN) as an error. Callers validate allowed variables
+// beforehand (see Eval / ResolveVars), so compilation is unconstrained.
+func run(expression string, vars map[string]float64) (float64, error) {
 	env := make(map[string]any, len(vars))
 	for k, v := range vars {
 		env[k] = v
 	}
-	program, err := expr.Compile(expression, expr.Env(env))
+	program, err := expr.Compile(expression)
 	if err != nil {
 		return 0, errf("Ошибка в формуле: %v", err)
 	}

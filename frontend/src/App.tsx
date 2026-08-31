@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { FolderOpen, Loader2, Settings } from "lucide-react";
+import { FolderOpen, Loader2, Settings, Variable } from "lucide-react";
 import * as Bindings from "../wailsjs/go/main/App";
 import type { formula, main } from "../wailsjs/go/models";
 import { onEvent, offEvent } from "@/lib/wails";
 import MvpCards from "@/components/MvpCards";
 import StatsTable from "@/components/StatsTable";
 import WeightsPanel from "@/components/WeightsPanel";
+import ManageVariables from "@/components/ManageVariables";
 import InfoBar, { type MatchInfo } from "@/components/InfoBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,6 +120,11 @@ export default function App() {
               <FolderOpen className="mr-1.5 size-3.5" /> Открыть
             </Button>
           )}
+          <ManageVariables views={views}>
+            <Button variant="ghost" size="sm" className="h-8">
+              <Variable className="mr-1.5 size-3.5" /> Переменные
+            </Button>
+          </ManageVariables>
           <Button variant="ghost" size="icon" className="size-8" onClick={() => setShowSettings((s) => !s)}>
             <Settings className="size-4" />
           </Button>

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"mvp/internal/formula"
+	"mvp/internal/mvp"
 	"mvp/internal/parse"
 )
 
@@ -18,12 +19,12 @@ func fixture(t *testing.T) *App {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &App{result: &result, store: formula.NewStore("")}
+	return &App{result: &result, store: formula.NewStore(""), varStore: formula.NewVariableStore("")}
 }
 
 func TestBuildViewsStandard(t *testing.T) {
 	a := fixture(t)
-	views, err := BuildViews(*a.result, a.store.Active())
+	views, err := BuildViews(*a.result, a.store.Active(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +61,7 @@ func TestBuildViewsStandard(t *testing.T) {
 
 func TestBuildViewsTopScores(t *testing.T) {
 	a := fixture(t)
-	views, err := BuildViews(*a.result, formula.StandardPreset())
+	views, err := BuildViews(*a.result, formula.StandardPreset(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,4 +86,33 @@ func TestAppParserURLRoundtrip(t *testing.T) {
 		t.Fatal("expected empty before startup")
 	}
 	_ = a
+}
+
+func TestEvalVariableAgainstLoadedPlayer(t *testing.T) {
+	a := fixture(t)
+	// Use a stored disabled variable store; find first player's base stats.
+	p := a.result.Players[0]
+	v, err := a.EvalVariable("dead_ratio", "time_dead / max(deaths, 1)", mvp.PlayerVars(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v < 0 {
+		t.Fatalf("negative ratio %v", v)
+	}
+}
+
+func TestEvalVariableRejectsUnknownToken(t *testing.T) {
+	a := fixture(t)
+	_, err := a.EvalVariable("x", "time_dead / nonsense", nil)
+	if err == nil {
+		t.Fatal("want error for unknown token")
+	}
+}
+
+func TestTestPlayerStatsNonEmpty(t *testing.T) {
+	a := NewApp()
+	s := a.TestPlayerStats()
+	if s["kills"] != 10 || s["deaths"] != 4 || s["time_dead"] != 480 {
+		t.Fatalf("unexpected test stats: %+v", s)
+	}
 }

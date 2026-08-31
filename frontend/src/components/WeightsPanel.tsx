@@ -217,11 +217,15 @@ function EditorButton({
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [variables, setVariables] = useState<formula.Variable[]>([]);
   const [preview, setPreview] = useState<{ error: string } | { rows: { Hero: string; Score: number }[] } | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (open) setText(preset.kind === "expression" ? preset.expression : linearToExpression(preset.weights ?? {}, EDITABLE));
+    if (open) {
+      setText(preset.kind === "expression" ? preset.expression : linearToExpression(preset.weights ?? {}, EDITABLE));
+      void Bindings.ListVariables().then(setVariables);
+    }
   }, [open, preset]);
 
   const validate = async (expr: string) => {
@@ -268,6 +272,25 @@ function EditorButton({
             </Button>
           ))}
         </div>
+        {variables.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-semibold text-muted-foreground">Пользовательские переменные</span>
+            <div className="flex flex-wrap gap-1">
+              {variables.map((v) => (
+                <Button
+                  key={v.id}
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-1.5 font-mono text-[10px]"
+                  title={`${v.name} = ${v.expression}`}
+                  onClick={() => setText((t) => `${t} ${t ? "+ " : ""}${v.name}`)}
+                >
+                  {v.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
         <Separator />
         <div className="min-h-8 text-xs">
           {preview && "error" in preview ? (

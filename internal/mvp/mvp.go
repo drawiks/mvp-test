@@ -44,6 +44,7 @@ type Weights struct {
 	HealDuration    float64
 	HealValue       float64
 	GoldLost        float64
+	TimeDead        float64
 }
 
 // DefaultWeights matches the python DEFAULT_LINEAR_WEIGHTS.
@@ -93,6 +94,7 @@ var weightKeys = map[string]weightField{
 	"heal_duration":    {"HealDuration", "heal_duration", func(p *model.Player) float64 { return p.HealDuration }},
 	"heal_value":       {"HealValue", "heal_value", func(p *model.Player) float64 { return p.HealValue }},
 	"gold_lost":        {"GoldLost", "gold_lost", func(p *model.Player) float64 { return p.GoldLost }},
+	"time_dead":        {"TimeDead", "time_dead", func(p *model.Player) float64 { return p.TimeDead }},
 }
 
 type weightField struct {
@@ -170,6 +172,8 @@ func (w *Weights) value(key string) float64 {
 		return w.HealValue
 	case "GoldLost":
 		return w.GoldLost
+	case "TimeDead":
+		return w.TimeDead
 	}
 	return 0
 }
@@ -260,6 +264,8 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 			w.HealValue = v
 		case "GoldLost":
 			w.GoldLost = v
+		case "TimeDead":
+			w.TimeDead = v
 		}
 	}
 	return w
@@ -286,6 +292,7 @@ func PlayerVars(p model.Player) map[string]float64 {
 		"taunt_duration": p.TauntDuration, "silence_duration": p.SilenceDuration,
 		"break_duration": p.BreakDuration, "disarm_duration": p.DisarmDuration,
 		"heal_duration": p.HealDuration, "heal_value": p.HealValue, "gold_lost": p.GoldLost,
+		"time_dead": p.TimeDead,
 	}
 }
 
@@ -315,11 +322,26 @@ func PresetWeights(p formula.Preset) Weights {
 // ComputeScore scores a player with either a linear preset or an expression
 // preset.
 func ComputeScore(p model.Player, preset formula.Preset) (float64, error) {
+	return ComputeScoreVars(p, preset, nil)
+}
+
+// ComputeScoreVars scores a player, resolving the given user variables as
+// additional tokens inside expression presets. Linear presets ignore
+// variables.
+func ComputeScoreVars(p model.Player, preset formula.Preset, vars []formula.Variable) (float64, error) {
 	if preset.Kind == "expression" {
 		if preset.Expression == "" {
 			return 0, nil
 		}
-		return formula.Eval(preset.Expression, PlayerVars(p))
+		env := PlayerVars(p)
+		if len(vars) > 0 {
+			var err error
+			env, err = formula.ResolveVars(env, vars)
+			if err != nil {
+				return 0, err
+			}
+		}
+		return formula.Eval(preset.Expression, env)
 	}
 	w := PresetWeights(preset)
 	total := 0.0
@@ -342,7 +364,7 @@ func ScoreLinear(p model.Player, w Weights) float64 {
 }
 
 // RankedPlayers sorts the two real teams by score, highest first.
-func RankedPlayers(result model.Result, preset formula.Preset) ([]model.Player, error) {
+func RankedPlayers(result model.Result, preset formula.Preset, vars []formula.Variable) ([]model.Player, error) {
 	type scored struct {
 		player model.Player
 		score  float64
@@ -352,7 +374,7 @@ func RankedPlayers(result model.Result, preset formula.Preset) ([]model.Player, 
 		if p.Team != "radiant" && p.Team != "dire" {
 			continue
 		}
-		s, err := ComputeScore(p, preset)
+		s, err := ComputeScoreVars(p, preset, vars)
 		if err != nil {
 			return nil, err
 		}
@@ -367,7 +389,7 @@ func RankedPlayers(result model.Result, preset formula.Preset) ([]model.Player, 
 }
 
 // RankTeam sorts a single team's (real) players by score, highest first.
-func RankTeam(result model.Result, team string, preset formula.Preset) ([]model.Player, error) {
+func RankTeam(result model.Result, team string, preset formula.Preset, vars []formula.Variable) ([]model.Player, error) {
 	filtered := make([]model.Player, 0, 5)
 	for _, p := range result.Players {
 		if p.Team == team {
@@ -376,12 +398,12 @@ func RankTeam(result model.Result, team string, preset formula.Preset) ([]model.
 	}
 	full := result
 	full.Players = filtered
-	return RankedPlayers(full, preset)
+	return RankedPlayers(full, preset, vars)
 }
 
 // SelectMvps returns the three podium spots: winner's top two and loser's top
 // one. Mirrors the python select_mvps.
-func SelectMvps(result model.Result, preset formula.Preset) (map[string]*model.Player, error) {
+func SelectMvps(result model.Result, preset formula.Preset, vars []formula.Variable) (map[string]*model.Player, error) {
 	type scored struct {
 		player model.Player
 		score  float64
@@ -392,7 +414,7 @@ func SelectMvps(result model.Result, preset formula.Preset) (map[string]*model.P
 			if result.Players[i].Team != team {
 				continue
 			}
-			s, err := ComputeScore(result.Players[i], preset)
+			s, err := ComputeScoreVars(result.Players[i], preset, vars)
 			if err != nil {
 				return nil, err
 			}

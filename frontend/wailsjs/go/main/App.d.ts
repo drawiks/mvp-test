@@ -15,9 +15,13 @@ export function EmitResult():Promise<void>;
 
 export function EvalPreview(arg1:string):Promise<Array<main.PlayerView>>;
 
+export function EvalVariable(arg1:string,arg2:string,arg3:Record<string, number>):Promise<number>;
+
 export function ExportPreset(arg1:string,arg2:string):Promise<void>;
 
 export function ExportPresetDialog(arg1:string):Promise<boolean>;
+
+export function ExportVariableDialog(arg1:string):Promise<boolean>;
 
 export function GetParserURL():Promise<string>;
 
@@ -27,7 +31,11 @@ export function ImportPreset(arg1:string):Promise<formula.Preset>;
 
 export function ImportPresetDialog():Promise<formula.Preset|boolean>;
 
+export function ImportVariableDialog():Promise<formula.Variable|boolean>;
+
 export function ListPresets():Promise<Array<formula.Preset>>;
+
+export function ListVariables():Promise<Array<formula.Variable>>;
 
 export function ParseReplay(arg1:string):Promise<void>;
 
@@ -35,8 +43,14 @@ export function Recompute():Promise<void>;
 
 export function RemovePreset(arg1:string):Promise<boolean>;
 
+export function RemoveVariable(arg1:string):Promise<void>;
+
 export function SetActivePreset(arg1:string):Promise<void>;
 
 export function SetParserURL(arg1:string):Promise<void>;
 
+export function TestPlayerStats():Promise<Record<string, number>>;
+
 export function UpsertPreset(arg1:formula.Preset):Promise<void>;
+
+export function UpsertVariable(arg1:formula.Variable):Promise<void>;

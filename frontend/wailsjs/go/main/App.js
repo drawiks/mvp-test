@@ -26,12 +26,20 @@ export function EvalPreview(arg1) {
   return window['go']['main']['App']['EvalPreview'](arg1);
 }
 
+export function EvalVariable(arg1, arg2, arg3) {
+  return window['go']['main']['App']['EvalVariable'](arg1, arg2, arg3);
+}
+
 export function ExportPreset(arg1, arg2) {
   return window['go']['main']['App']['ExportPreset'](arg1, arg2);
 }
 
 export function ExportPresetDialog(arg1) {
   return window['go']['main']['App']['ExportPresetDialog'](arg1);
+}
+
+export function ExportVariableDialog(arg1) {
+  return window['go']['main']['App']['ExportVariableDialog'](arg1);
 }
 
 export function GetParserURL() {
@@ -50,8 +58,16 @@ export function ImportPresetDialog() {
   return window['go']['main']['App']['ImportPresetDialog']();
 }
 
+export function ImportVariableDialog() {
+  return window['go']['main']['App']['ImportVariableDialog']();
+}
+
 export function ListPresets() {
   return window['go']['main']['App']['ListPresets']();
+}
+
+export function ListVariables() {
+  return window['go']['main']['App']['ListVariables']();
 }
 
 export function ParseReplay(arg1) {
@@ -66,6 +82,10 @@ export function RemovePreset(arg1) {
   return window['go']['main']['App']['RemovePreset'](arg1);
 }
 
+export function RemoveVariable(arg1) {
+  return window['go']['main']['App']['RemoveVariable'](arg1);
+}
+
 export function SetActivePreset(arg1) {
   return window['go']['main']['App']['SetActivePreset'](arg1);
 }
@@ -74,6 +94,14 @@ export function SetParserURL(arg1) {
   return window['go']['main']['App']['SetParserURL'](arg1);
 }
 
+export function TestPlayerStats() {
+  return window['go']['main']['App']['TestPlayerStats']();
+}
+
 export function UpsertPreset(arg1) {
   return window['go']['main']['App']['UpsertPreset'](arg1);
+}
+
+export function UpsertVariable(arg1) {
+  return window['go']['main']['App']['UpsertVariable'](arg1);
 }
