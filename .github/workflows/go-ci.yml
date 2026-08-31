@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: 1.27
+      - name: Create frontend/dist for //go:embed
+        run: mkdir -p frontend/dist && touch frontend/dist/.gitkeep
       - run: go vet ./...
       - run: go test ./...
 
@@ -32,7 +34,7 @@ jobs:
       - name: Install mingw-w64
         run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
       - name: Install Wails
-        run: go install github.com/wails/app/v2/cmd/wails@latest
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
       - name: Build Windows exe
         run: wails build -platform windows/amd64 -clean -o mvp.exe
       - name: Upload artifact
