@@ -37,6 +37,9 @@ export default function WeightsPanel({ presets, activeId, onChange }: Props) {
   const active = presets.find((p) => p.id === activeId) ?? null;
   const [draft, setDraft] = useState<formula.Preset | null>(active);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Generation guard so a stale debounced slider commit can't overwrite a
+  // fresher write (e.g. the expression editor's save).
+  const saveGen = useRef(0);
 
   // Re-seed the draft whenever the active preset changes from outside.
   useEffect(() => setDraft(active), [active]);
@@ -51,10 +54,17 @@ export default function WeightsPanel({ presets, activeId, onChange }: Props) {
     [draft, weights]
   );
 
+  // Bump the generation so any pending debounced commit becomes invalid.
+  const invalidate = () => {
+    saveGen.current++;
+  };
+
   const commit = (next: formula.Preset) => {
     setDraft(next);
+    const gen = saveGen.current;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
+      if (saveGen.current !== gen) return;
       try {
         await Bindings.UpsertPreset(next);
         await Bindings.Recompute();
@@ -74,6 +84,7 @@ export default function WeightsPanel({ presets, activeId, onChange }: Props) {
   };
 
   const selectPreset = async (id: string) => {
+    invalidate();
     try {
       await Bindings.SetActivePreset(id);
     } catch (e) {
@@ -131,7 +142,7 @@ export default function WeightsPanel({ presets, activeId, onChange }: Props) {
               <p className="rounded-md bg-background/60 p-2 font-mono text-[11px] leading-relaxed break-all text-foreground">
                 {draft.expression}
               </p>
-              <EditorButton preset={draft} onChange={onChange} />
+              <EditorButton preset={draft} onChange={onChange} invalidate={invalidate} />
             </div>
           ) : null}
         </div>
@@ -144,6 +155,7 @@ export default function WeightsPanel({ presets, activeId, onChange }: Props) {
           <EditorButton
             preset={draft}
             onChange={onChange}
+            invalidate={invalidate}
             trigger={<Button variant="secondary" size="sm"><Code2 className="size-3.5" /> Редактор</Button>}
           />
         )}
@@ -209,10 +221,12 @@ function WeightRow({
 function EditorButton({
   preset,
   onChange,
+  invalidate,
   trigger,
 }: {
   preset: formula.Preset;
   onChange: () => Promise<void> | void;
+  invalidate: () => void;
   trigger?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -244,6 +258,7 @@ function EditorButton({
   const save = async () => {
     try {
       const next: formula.Preset = { ...preset, kind: "expression", expression: text.trim() };
+      invalidate();
       await Bindings.UpsertPreset(next);
       await Bindings.Recompute();
       await onChange();

@@ -165,9 +165,12 @@ func (s *Store) Active() Preset {
 	return StandardPreset()
 }
 
+// isBuiltin reports whether id is a read-only built-in preset.
+func isBuiltin(id string) bool { return id == "standard" || id == "standard_v2" }
+
 // Add inserts a preset. Built-ins are never overwritten.
 func (s *Store) Add(p Preset) {
-	if _, isBuiltin := s.presets[p.ID]; isBuiltin {
+	if isBuiltin(p.ID) {
 		return
 	}
 	s.add(p)
@@ -175,7 +178,7 @@ func (s *Store) Add(p Preset) {
 
 // Upsert adds or replaces a user preset. Built-ins are never overwritten.
 func (s *Store) Upsert(p Preset) {
-	if _, isBuiltin := s.presets[p.ID]; isBuiltin {
+	if isBuiltin(p.ID) {
 		return
 	}
 	s.add(p)

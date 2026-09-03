@@ -106,6 +106,34 @@ func TestStoreStandardIsBuiltin(t *testing.T) {
 	}
 }
 
+func TestStoreUpsertOverwritesExisting(t *testing.T) {
+	// Regression: Upsert/Add must overwrite an existing user preset, so
+	// converting a saved linear preset to an expression one actually sticks.
+	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
+	s.Upsert(Preset{ID: "x", Name: "X", Kind: "linear", Weights: map[string]float64{"deaths": 0.1}})
+	s.Upsert(Preset{ID: "x", Name: "X", Kind: "expression", Expression: "kills * 5 + deaths"})
+
+	p, ok := s.Get("x")
+	if !ok {
+		t.Fatal("preset missing")
+	}
+	if p.Kind != "expression" || p.Expression != "kills * 5 + deaths" {
+		t.Fatalf("expected expression to overwrite linear, got %+v", p)
+	}
+}
+
+func TestStoreBuiltinsNeverOverwritten(t *testing.T) {
+	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
+	s.Upsert(Preset{ID: "standard", Kind: "expression", Expression: "hacked"})
+	s.Add(Preset{ID: "standard_v2", Kind: "linear", Weights: map[string]float64{"kills": 9}})
+	if s.presets["standard"].Expression != "" {
+		t.Fatal("standard builtin was overwritten")
+	}
+	if s.presets["standard_v2"].Expression == "" {
+		t.Fatal("standard_v2 builtin lost its expression")
+	}
+}
+
 func TestImportExport(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "f.json"))
