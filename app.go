@@ -165,7 +165,7 @@ func (a *App) SetActivePreset(id string) error {
 
 // UpsertPreset adds or replaces a preset after validation.
 func (a *App) UpsertPreset(p formula.Preset) error {
-	if err := a.store.ValidatePreset(p); err != nil {
+	if err := a.store.ValidatePreset(p, a.varStore.AllowedNames()); err != nil {
 		return err
 	}
 	if p.ID == "standard" || p.ID == "standard_v2" {

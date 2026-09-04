@@ -187,13 +187,21 @@ func (s *Store) Upsert(p Preset) {
 	}
 }
 
-// ValidatePreset checks a preset before it is stored.
-func (s *Store) ValidatePreset(p Preset) error {
+// ValidatePreset checks a preset before it is stored. extra adds identifiers
+// (e.g. user-variable names) allowed alongside the base stat tokens.
+func (s *Store) ValidatePreset(p Preset, extra map[string]bool) error {
 	if strings.TrimSpace(p.Name) == "" {
 		return errf("Введите название пресета")
 	}
 	if p.Kind == "expression" {
-		return Validate(p.Expression, statTokens)
+		allowed := make(map[string]bool, len(statTokens)+len(extra))
+		for t := range statTokens {
+			allowed[t] = true
+		}
+		for t := range extra {
+			allowed[t] = true
+		}
+		return Validate(p.Expression, allowed)
 	}
 	if p.Kind != "linear" {
 		return errf("Неизвестный вид пресета")

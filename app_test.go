@@ -116,3 +116,25 @@ func TestTestPlayerStatsNonEmpty(t *testing.T) {
 		t.Fatalf("unexpected test stats: %+v", s)
 	}
 }
+
+func TestUpsertPresetAllowsUserVariables(t *testing.T) {
+	a := fixture(t)
+	// Register a user variable that the preset's expression will reference.
+	a.varStore.Add(formula.Variable{Name: "Initiation_Density", Expression: "kills * 2"})
+	preset := formula.Preset{ID: "p", Name: "P", Kind: "expression", Expression: "kills * 2 + Initiation_Density"}
+	if err := a.UpsertPreset(preset); err != nil {
+		t.Fatalf("upsert with user variable failed: %v", err)
+	}
+	got, ok := a.store.Get("p")
+	if !ok || got.Expression != "kills * 2 + Initiation_Density" {
+		t.Fatalf("preset not persisted: %+v ok=%v", got, ok)
+	}
+}
+
+func TestUpsertPresetRejectsUnknownToken(t *testing.T) {
+	a := fixture(t)
+	preset := formula.Preset{ID: "p", Name: "P", Kind: "expression", Expression: "kills * nonexistent_x"}
+	if err := a.UpsertPreset(preset); err == nil {
+		t.Fatal("want error for unknown token")
+	}
+}

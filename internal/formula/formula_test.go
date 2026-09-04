@@ -134,6 +134,21 @@ func TestStoreBuiltinsNeverOverwritten(t *testing.T) {
 	}
 }
 
+func TestValidatePresetAllowsUserVariables(t *testing.T) {
+	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
+	expr := "kills * 2 + Initiation_Density"
+
+	// Without extra, an unknown identifier is rejected.
+	if err := s.ValidatePreset(Preset{Name: "X", Kind: "expression", Expression: expr}, nil); err == nil {
+		t.Fatal("want error without user-variable allowed set")
+	}
+
+	// With the variable name allowed, the same expression validates.
+	if err := s.ValidatePreset(Preset{Name: "X", Kind: "expression", Expression: expr}, map[string]bool{"Initiation_Density": true}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestImportExport(t *testing.T) {
 	dir := t.TempDir()
 	store := NewStore(filepath.Join(dir, "f.json"))
