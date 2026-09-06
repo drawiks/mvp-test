@@ -98,6 +98,25 @@ func TestFromPlayerNoBuffs(t *testing.T) {
 	}
 }
 
+func TestFromPlayerPositionLane(t *testing.T) {
+	r, err := ReadAggregatedJSON([]byte(`
+	{"duration_sec": 1, "radiant_win": true,
+	 "players": [
+	   {"steam_id": 1, "player_id": 0, "hero_id": 1, "hero": "H",
+	    "team": "radiant", "name": "n", "position": 2, "lane": "mid",
+	    "kills": 0, "deaths": 0, "assists": 0, "level": 1, "last_hits": 0,
+	    "networth": 0, "gpm": 0, "xpm": 0}
+	 ]}
+	`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := r.Players[0]
+	if p.Position != 2 || p.Lane != "mid" {
+		t.Fatalf("position=%d lane=%q", p.Position, p.Lane)
+	}
+}
+
 func TestLegacyValueFallback(t *testing.T) {
 	r, err := ReadAggregatedJSON([]byte(`
 	{"duration_sec": 1, "radiant_win": true,

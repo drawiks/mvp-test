@@ -98,6 +98,8 @@ func FromPlayer(p parser.Player) model.Player {
 		Hero:           canonicalHero(p.HeroID, p.Hero),
 		Team:           p.Team,
 		Name:           p.Name,
+		Position:       p.Position,
+		Lane:           p.Lane,
 		Kills:          p.Kills,
 		Deaths:         p.Deaths,
 		Assists:        p.Assists,

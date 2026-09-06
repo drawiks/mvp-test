@@ -1,7 +1,5 @@
 package model
 
-// Player carries per-player stats used by the MVP scoring engine.
-// In-model duration fields are seconds (float), matching the odota parser.
 type Player struct {
 	SteamID        int64
 	PlayerID       int
@@ -9,6 +7,8 @@ type Player struct {
 	Hero           string
 	Team           string
 	Name           string
+	Position       int
+	Lane           string
 	Kills          int
 	Deaths         int
 	Assists        int
@@ -35,7 +35,6 @@ type Player struct {
 	Purge          float64
 	ShieldUptime   float64
 
-	// Stats provided by odota/parser that the python version could not source.
 	FearDuration     float64
 	RootsDuration    float64
 	LeashDuration    float64
@@ -53,7 +52,6 @@ type Player struct {
 	CourierKills     int
 }
 
-// Result is a fully parsed match.
 type Result struct {
 	MatchID     int64
 	DurationSec int64

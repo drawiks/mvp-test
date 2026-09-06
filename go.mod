@@ -3,7 +3,7 @@ module mvp
 go 1.26.6
 
 require (
-	github.com/drawiks/odota-cli v0.1.3
+	github.com/drawiks/odota-cli v0.1.4
 	github.com/expr-lang/expr v1.17.8
 	github.com/klauspost/compress v1.19.2
 	github.com/wailsapp/wails/v2 v2.15.0

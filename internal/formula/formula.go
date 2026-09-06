@@ -10,14 +10,11 @@ import (
 	"github.com/expr-lang/expr/parser"
 )
 
-// Stat is a single variable usable inside a formula expression.
 type Stat struct {
 	Token string
 	Label string
 }
 
-// Stats is the full registry: the 21 tokens the python version exposed,
-// plus the new stats sourced from odota/parser.
 var Stats = []Stat{
 	{"kills", "Kills"}, {"deaths", "Deaths"}, {"assists", "Assists"},
 	{"last_hits", "Last Hits"}, {"gpm", "GPM"}, {"xpm", "XPM"},
@@ -37,15 +34,15 @@ var Stats = []Stat{
 	{"gold_lost", "Gold Lost"}, {"time_dead", "Time Dead"},
 	{"wisdoms_captured", "Wisdoms Captured"}, {"watchers_captured", "Watchers Captured"},
 	{"lotuses_gathered", "Lotuses Gathered"}, {"courier_kills", "Courier Kills"},
-	{"match_duration", "Match Duration"},
+	{"match_duration", "Match Duration"}, {"position", "Position"},
 }
 
 var (
 	statTokens  = map[string]bool{}
 	statLabels  = map[string]string{}
 	Funcs       = map[string]bool{"max": true, "min": true, "abs": true, "round": true}
-	binaryOps   = map[string]bool{"+": true, "-": true, "*": true, "/": true, "**": true}
-	unaryOps    = map[string]bool{"+": true, "-": true}
+	binaryOps   = map[string]bool{"+": true, "-": true, "*": true, "/": true, "**": true, "==": true, "!=": true, "<": true, ">": true, "<=": true, ">=": true, "&&": true, "||": true}
+	unaryOps    = map[string]bool{"+": true, "-": true, "!": true}
 	exprTerms   []struct{ token, key string }
 	weightByKey = map[string]string{}
 )
@@ -81,13 +78,10 @@ func init() {
 	}
 }
 
-// StatTokens reports whether token is a valid formula variable.
 func StatTokens(token string) bool { return statTokens[token] }
 
-// StatLabel returns the display label for a token.
 func StatLabel(token string) string { return statLabels[token] }
 
-// Examples shipped with the editor as quick-start presets.
 var Examples = []struct{ Name, Expression string }{
 	{"KDA ratio", "(kills * 3 + assists * 1.5) / max(deaths, 1)"},
 	{"Support focus", "(kills * 2 + assists * 2.5) / max(deaths, 1) + healing * 0.005 + camps_stacked * 0.5 + stun_duration * 0.05"},
@@ -95,7 +89,6 @@ var Examples = []struct{ Name, Expression string }{
 	{"Carry", "kills * 0.3 + (3 - deaths * 0.3) + assists * 0.15 + last_hits * 0.003 + gpm * 0.002 + xpm * 0.002"},
 }
 
-// DefaultLinearWeights are the per-key coefficients of the built-in linear preset.
 var DefaultLinearWeights = map[string]float64{
 	"kills": 0.3, "deaths": 0.3, "deaths_base": 3.0, "assists": 0.15,
 	"last_hits": 0.003, "gpm": 0.002, "xpm": 0.002, "stun": 0.05,
@@ -109,7 +102,6 @@ var DefaultLinearWeights = map[string]float64{
 	"heal_value": 0.0, "gold_lost": 0.0,
 }
 
-// StandardV2Formula is the default expression preset.
 const StandardV2Formula = "kills * 0.2 + assists * 0.15 + last_hits * 0.003 + xpm * 0.003" +
 	" + tower_damage * 0.0007 + hero_damage * 0.00005" +
 	" + (damage_taken / max(deaths, 1)) * 0.00015" +
@@ -120,7 +112,6 @@ const StandardV2Formula = "kills * 0.2 + assists * 0.15 + last_hits * 0.003 + xp
 	" + gold_spent_wards * 0.0015 + gold_spent_smoke * 0.0015 + gold_spent_dust * 0.0015" +
 	" + first_blood * 1 + (3 - deaths * 0.3)"
 
-// FormulaError is raised for invalid expressions and evaluation failures.
 type FormulaError struct{ msg string }
 
 func (e *FormulaError) Error() string { return e.msg }
@@ -131,8 +122,6 @@ func errf(format string, args ...any) error {
 
 func fmtWeight(v float64) string { return fmt.Sprintf("%g", v) }
 
-// constValue extracts a numeric literal, unwrapping unary +/-. Returns ok=false
-// for anything else (mirrors _const_value).
 func constValue(n ast.Node) (float64, bool) {
 	switch node := n.(type) {
 	case *ast.IntegerNode:
@@ -155,7 +144,6 @@ func constValue(n ast.Node) (float64, bool) {
 	return 0, false
 }
 
-// flattenAdd returns the top-level terms of a sum (mirrors _flatten_add).
 func flattenAdd(node ast.Node) []ast.Node {
 	if b, ok := node.(*ast.BinaryNode); ok && b.Operator == "+" {
 		return append(flattenAdd(b.Left), flattenAdd(b.Right)...)
@@ -163,9 +151,6 @@ func flattenAdd(node ast.Node) []ast.Node {
 	return []ast.Node{node}
 }
 
-// extractWeightTerm pulls a linear coefficient out of a term. Mirrors
-// _extract_weight_term: duplicates, plain deaths, bare unknown names, and
-// nonlinear shapes are refused.
 func extractWeightTerm(term ast.Node, weights map[string]float64) bool {
 	if v, ok := constValue(term); ok {
 		if _, dup := weights["deaths_base"]; dup {
@@ -224,7 +209,6 @@ func extractWeightTerm(term ast.Node, weights map[string]float64) bool {
 	return false
 }
 
-// timesNameValue parses 'name * const' in either ordering.
 func timesNameValue(sub *ast.BinaryNode) (name string, val float64, found bool) {
 	lv, lok := constValue(sub.Left)
 	rv, rok := constValue(sub.Right)
@@ -237,7 +221,6 @@ func timesNameValue(sub *ast.BinaryNode) (name string, val float64, found bool) 
 	return "", 0, false
 }
 
-// parseExpression parses a formula into an expr AST tree.
 func parseExpression(expression string) (*parser.Tree, error) {
 	tree, err := parser.Parse(expression)
 	if err != nil {
@@ -246,8 +229,6 @@ func parseExpression(expression string) (*parser.Tree, error) {
 	return tree, nil
 }
 
-// ExpressionToWeights extracts coefficients from a linear expression, or
-// returns ok=false for anything nonlinear. Mirrors expression_to_weights.
 func ExpressionToWeights(expression string) (map[string]float64, bool) {
 	tree, err := parseExpression(expression)
 	if err != nil {
@@ -265,9 +246,6 @@ func ExpressionToWeights(expression string) (map[string]float64, bool) {
 	return weights, true
 }
 
-// SplitExpression separates a formula into linear weights and the nonlinear
-// tail, which stays fixed while the editor tunes coefficients. Mirrors
-// split_expression.
 func SplitExpression(expression string) (map[string]float64, string) {
 	tree, err := parseExpression(expression)
 	if err != nil {
@@ -284,8 +262,6 @@ func SplitExpression(expression string) (map[string]float64, string) {
 	return weights, strings.Join(tail, " + ")
 }
 
-// LinearToExpression renders linear weights as an equivalent expression.
-// Mirrors linear_to_expression.
 func LinearToExpression(weights map[string]float64) string {
 	var parts []string
 	for _, t := range exprTerms {
@@ -305,8 +281,6 @@ func LinearToExpression(weights map[string]float64) string {
 	return strings.Join(parts, " + ")
 }
 
-// Validate checks an expression against the allowed token set. A nil error
-// means the expression is safe to evaluate.
 func Validate(expression string, allowed map[string]bool) error {
 	if strings.TrimSpace(expression) == "" {
 		return errf("Формула пустая")
@@ -320,7 +294,7 @@ func Validate(expression string, allowed map[string]bool) error {
 
 func checkNode(n ast.Node, allowed map[string]bool) error {
 	switch node := n.(type) {
-	case *ast.IntegerNode, *ast.FloatNode:
+	case *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode:
 		return nil
 	case *ast.IdentifierNode:
 		if allowed[node.Value] {
@@ -364,6 +338,13 @@ func checkNode(n ast.Node, allowed map[string]bool) error {
 			}
 		}
 		return nil
+	case *ast.ConditionalNode:
+		for _, sub := range []ast.Node{node.Cond, node.Exp1, node.Exp2} {
+			if err := checkNode(sub, allowed); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	return errf("Недопустимая часть формулы: %s", typeName(n))
 }
@@ -380,9 +361,6 @@ func typeName(n ast.Node) string {
 	return fmt.Sprintf("%T", n)[4:] // strip the "ast." prefix
 }
 
-// Eval evaluates an expression against a variable map. Division by zero (which
-// surfaces as Inf/NaN in float math) is reported as an error, mirroring the
-// python ZeroDivisionError path.
 func Eval(expression string, vars map[string]float64) (float64, error) {
 	allowed := map[string]bool{}
 	for k := range vars {
@@ -394,9 +372,6 @@ func Eval(expression string, vars map[string]float64) (float64, error) {
 	return run(expression, vars)
 }
 
-// run compiles and evaluates an expression against a variable map, reporting
-// division by zero (Inf/NaN) as an error. Callers validate allowed variables
-// beforehand (see Eval / ResolveVars), so compilation is unconstrained.
 func run(expression string, vars map[string]float64) (float64, error) {
 	env := make(map[string]any, len(vars))
 	for k, v := range vars {
@@ -414,7 +389,6 @@ func run(expression string, vars map[string]float64) (float64, error) {
 	if !ok {
 		return 0, errf("Ошибка вычисления: нечисловой результат")
 	}
-	// python: ZeroDivisionError -> "Деление на ноль"
 	if math.IsInf(score, 0) || math.IsNaN(score) {
 		return 0, errf("Деление на ноль")
 	}

@@ -411,3 +411,78 @@ func TestExpressionToWeightsNewStats(t *testing.T) {
 		t.Fatal("match_duration is expression-only, must not convert to linear weights")
 	}
 }
+
+func TestPositionTokenRegistered(t *testing.T) {
+	if !StatTokens("position") {
+		t.Fatal("position missing from statTokens")
+	}
+	if err := Validate("if position == 1 { kills * 2 } else { kills }", statTokens); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := ExpressionToWeights("position * 2"); ok {
+		t.Fatal("position is expression-only, must not convert to linear weights")
+	}
+}
+
+func TestEvalIfElse(t *testing.T) {
+	vars := map[string]float64{"position": 1, "kills": 10, "deaths": 4}
+	expr := "if position == 1 { (kills * 21) * 0.11 } else { kills }"
+	if got := EvalOn(t, expr, vars); !approx(got, 23.1, 1e-9) {
+		t.Fatalf("got %v", got)
+	}
+	vars["position"] = 3
+	if got := EvalOn(t, expr, vars); !approx(got, 10, 1e-9) {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestEvalIfElifChain(t *testing.T) {
+	vars := map[string]float64{"position": 0, "kills": 10, "assists": 5}
+	expr := "if position == 1 { kills } else if position == 2 { assists } else if position == 3 { kills + assists } else { 0 }"
+	if got := EvalOn(t, expr, vars); got != 0 {
+		t.Fatalf("got %v", got)
+	}
+	vars["position"] = 2
+	if got := EvalOn(t, expr, vars); got != 5 {
+		t.Fatalf("got %v", got)
+	}
+	vars["position"] = 3
+	if got := EvalOn(t, expr, vars); got != 15 {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestEvalConditionOperators(t *testing.T) {
+	vars := map[string]float64{"position": 1, "kills": 12, "assists": 3, "deaths": 5}
+	if got := EvalOn(t, "if kills >= 10 && assists < 5 { kills } else { assists }", vars); got != 12 {
+		t.Fatalf("&& got %v", got)
+	}
+	if got := EvalOn(t, "if kills >= 10 || assists > 9 { kills + assists } else { 0 }", vars); got != 15 {
+		t.Fatalf("|| got %v", got)
+	}
+	if got := EvalOn(t, "if !(deaths > 3) { kills } else { deaths }", vars); got != 5 {
+		t.Fatalf("! got %v", got)
+	}
+	if got := EvalOn(t, "if position <= 2 && position != 0 { kills } else { 0 }", vars); got != 12 {
+		t.Fatalf("<= != got %v", got)
+	}
+	if got := EvalOn(t, "kills > deaths ? kills : deaths", vars); got != 12 {
+		t.Fatalf("ternary got %v", got)
+	}
+}
+
+func TestValidateRejectsDisallowedOperators(t *testing.T) {
+	cases := []string{
+		"kills % 2",
+		"kills in [1, 2]",
+		"kills and assists",
+		"kills or assists",
+		"not kills",
+		`if kills >= 1 { "abc" } else { "def" }`,
+	}
+	for _, expr := range cases {
+		if err := Validate(expr, statTokens); err == nil {
+			t.Errorf("%q validated unexpectedly", expr)
+		}
+	}
+}

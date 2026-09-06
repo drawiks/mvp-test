@@ -23,8 +23,6 @@ type Props = {
   onChange: () => Promise<void> | void;
 };
 
-// networth is not a scoring token and chipOnly tokens are expression-only -
-// neither appears as a linear weight row.
 const EDITABLE = WEIGHT_META.filter((m) => m.key !== "networth" && !m.chipOnly);
 const GROUPS = ["Бой", "Фарм", "Утилити", "Защита"].map((g) => ({ group: g, items: EDITABLE.filter((m) => m.group === g) }));
 
@@ -38,11 +36,8 @@ export default function WeightsPanel({ presets, activeId, onChange }: Props) {
   const active = presets.find((p) => p.id === activeId) ?? null;
   const [draft, setDraft] = useState<formula.Preset | null>(active);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Generation guard so a stale debounced slider commit can't overwrite a
-  // fresher write (e.g. the expression editor's save).
   const saveGen = useRef(0);
 
-  // Re-seed the draft whenever the active preset changes from outside.
   useEffect(() => setDraft(active), [active]);
 
   const weights = useMemo(
@@ -55,7 +50,6 @@ export default function WeightsPanel({ presets, activeId, onChange }: Props) {
     [draft, weights]
   );
 
-  // Bump the generation so any pending debounced commit becomes invalid.
   const invalidate = () => {
     saveGen.current++;
   };
@@ -277,7 +271,7 @@ function EditorButton({
         <DialogHeader>
           <DialogTitle>Редактор формулы</DialogTitle>
           <DialogDescription>
-            Используйте токены статов (kills, assists, stun_duration…), операторы + − * / и функции max/min/abs/round.
+            {"Используйте токены статов (kills, assists, stun_duration…), операторы + − * / **, условия if/elif/else: if position == 1 { kills * 2 } else { kills }, сравнения == != < > <= >=, логику && || ! и функции max/min/abs/round."}
           </DialogDescription>
         </DialogHeader>
         <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} className="font-mono text-[12px]" />

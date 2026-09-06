@@ -17,6 +17,8 @@ const BASE: Col[] = [
   { kind: "base", header: "Герой", key: "Hero" },
   { kind: "base", header: "Игрок", key: "Name" },
   { kind: "base", header: "Ур.", key: "Level", align: "center" },
+  { kind: "base", header: "Поз", key: "Position", align: "center", render: (v) => (v.Position > 0 ? String(v.Position) : "—") },
+  { kind: "base", header: "Линия", key: "Lane", align: "center", render: (v) => v.Lane || "—" },
 ];
 
 const STAT_COLS: Col[] = [
@@ -57,7 +59,6 @@ const ROLE_BG: Record<string, string> = {
   winner_top2: "bg-bronze/10",
 };
 
-/** Classic square hero icon with a letter fallback while it loads. */
 function HeroIcon({ hero, name }: { hero: string; name?: string }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -97,7 +98,6 @@ function StatCell({
   return <Tip tip={tip}>{text}</Tip>;
 }
 
-/** Tooltip wrapper for a table cell. */
 function Tip({ tip, children, className }: { tip: string | null; children: React.ReactNode; className?: string }) {
   if (!tip) return <span className={className}>{children}</span>;
   return (
@@ -140,6 +140,8 @@ export default function StatsTable({
       </td>
       <td className="px-2 py-1.5 text-muted-foreground">{v.Name || "—"}</td>
       <td className="px-2 py-1.5 text-center text-muted-foreground">{v.Level}</td>
+      <td className="px-2 py-1.5 text-center tabular-nums text-slate-300">{v.Position > 0 ? v.Position : "—"}</td>
+      <td className="px-2 py-1.5 text-center text-slate-300">{v.Lane || "—"}</td>
       <td className="px-2 py-1.5 text-center font-semibold text-kill">{v.Kills}</td>
       <td className="px-2 py-1.5 text-center font-semibold text-death">{v.Deaths}</td>
       <td className="px-2 py-1.5 text-center font-semibold text-slate-200">{v.Assists}</td>
@@ -194,7 +196,7 @@ export default function StatsTable({
         <table className="w-full min-w-[2100px] border-collapse text-xs">
           <thead className="sticky top-0 z-10">
             <tr className="bg-popover text-muted-foreground">
-              {["#", "Герой", "Игрок", "Ур."].map((h) => (
+              {["#", "Герой", "Игрок", "Ур.", "Поз", "Линия"].map((h) => (
                 <th key={h} className="border-b border-border px-2 py-2 text-left font-semibold uppercase">
                   {h}
                 </th>

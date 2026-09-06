@@ -17,10 +17,8 @@ type Props = {
   children?: React.ReactNode;
 };
 
-// Reusable token chips: all scoring tokens (exclude display-only networth) +
-// the operators/functions are a fixed hint line.
 const TOKENS = WEIGHT_TOKENS;
-const FUNCS_HINT = "+ − * / ** · функции max( ) min( ) abs( ) round( ) · max(deaths,1) защитит от деления на ноль";
+const FUNCS_HINT = "+ − * / ** · условия if/elif/else (if position == 1 { kills } else { kills / 4 }) · сравнения == != < > <= >= · логика && || ! · функции max( ) min( ) abs( ) round( )";
 
 export default function ManageVariables({ views, children }: Props) {
   const [open, setOpen] = useState(false);
@@ -134,7 +132,6 @@ function VariableEditor({ views, onSaved, variable, trigger }: EditorProps) {
       setExpr(variable?.expression ?? "");
       setError("");
       setValue(null);
-      // Select the first hero by default when a replay is loaded.
       setHeroId(heroes.length ? String(heroes[0].SteamID) : "");
       if (!loaded) void Bindings.TestPlayerStats().then((s) => { testBase.current = s; });
     }
@@ -180,7 +177,6 @@ function VariableEditor({ views, onSaved, variable, trigger }: EditorProps) {
     }
   };
 
-  // Debounced live validation while typing the expression.
   useEffect(() => {
     if (!openForm || expr.trim() === "") {
       setError("");
@@ -223,7 +219,6 @@ function VariableEditor({ views, onSaved, variable, trigger }: EditorProps) {
           </div>
           <p className="text-[10px] text-muted-foreground">{FUNCS_HINT}</p>
 
-          {/* Error / value preview */}
           <div className="grid gap-1 rounded-md border border-border bg-background/40 p-2">
             <label className="text-[11px] font-semibold text-muted-foreground">Проверка</label>
             {loaded && (

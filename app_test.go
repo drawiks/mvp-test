@@ -115,6 +115,9 @@ func TestTestPlayerStatsNonEmpty(t *testing.T) {
 	if s["kills"] != 10 || s["deaths"] != 4 || s["time_dead"] != 480 {
 		t.Fatalf("unexpected test stats: %+v", s)
 	}
+	if s["position"] != 2 {
+		t.Fatalf("position %v, want 2", s["position"])
+	}
 }
 
 func TestUpsertPresetAllowsUserVariables(t *testing.T) {

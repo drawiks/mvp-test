@@ -7,8 +7,6 @@ import (
 	"mvp/internal/model"
 )
 
-// Weights are the linear coefficients used by the built-in scorer. New odota
-// stats default to zero so default scores are unchanged from the python app.
 type Weights struct {
 	Kills          float64
 	Deaths         float64
@@ -51,7 +49,6 @@ type Weights struct {
 	CourierKills     float64
 }
 
-// DefaultWeights matches the python DEFAULT_LINEAR_WEIGHTS.
 var DefaultWeights = Weights{
 	Kills: 0.3, Deaths: 0.3, DeathsBase: 3.0, Assists: 0.15,
 	LastHits: 0.003, GPM: 0.002, XPM: 0.002, Stun: 0.05,
@@ -194,8 +191,6 @@ func (w *Weights) value(key string) float64 {
 	return 0
 }
 
-// WeightsToMapping serialises every field it was given a value for. As a
-// struct this is fixed-shape: the output mirrors the python asdict().
 func WeightsToMapping(w Weights) map[string]float64 {
 	out := map[string]float64{}
 	for key := range weightKeys {
@@ -204,8 +199,6 @@ func WeightsToMapping(w Weights) map[string]float64 {
 	return out
 }
 
-// WeightsFromMapping builds Weights from a sparse key/value mapping, ignoring
-// unknown keys.
 func WeightsFromMapping(mapping map[string]float64) Weights {
 	var w Weights
 	for key, v := range mapping {
@@ -295,8 +288,6 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 	return w
 }
 
-// PlayerVars exposes every formula token for a player. duration is the match
-// length (seconds), exposed as the match_duration token (constant per player).
 func PlayerVars(p model.Player, duration float64) map[string]float64 {
 	fb := 0.0
 	if p.FirstBlood {
@@ -321,11 +312,10 @@ func PlayerVars(p model.Player, duration float64) map[string]float64 {
 		"wisdoms_captured": float64(p.WisdomsCaptured), "watchers_captured": float64(p.WatchersCaptured),
 		"lotuses_gathered": float64(p.LotusesGathered), "courier_kills": float64(p.CourierKills),
 		"match_duration": duration,
+		"position":       float64(p.Position),
 	}
 }
 
-// ScoreBreakdown returns per-token score contributions for a linear weight
-// set. The "deaths" contribution is DeathsBase - Deaths*p.Deaths.
 func ScoreBreakdown(p model.Player, w Weights) map[string]float64 {
 	out := map[string]float64{}
 	for key, f := range weightKeys {
@@ -341,21 +331,14 @@ func ScoreBreakdown(p model.Player, w Weights) map[string]float64 {
 	return out
 }
 
-// PresetWeights reduces a linear preset to a Weights struct using only known
-// keys. Expression presets yield zero values and must not be used here.
 func PresetWeights(p formula.Preset) Weights {
 	return WeightsFromMapping(p.Weights)
 }
 
-// ComputeScore scores a player with either a linear preset or an expression
-// preset, with no match duration set.
 func ComputeScore(p model.Player, preset formula.Preset) (float64, error) {
 	return ComputeScoreVars(p, 0, preset, nil)
 }
 
-// ComputeScoreVars scores a player, resolving the given user variables as
-// additional tokens inside expression presets. Linear presets ignore
-// variables. duration (match length, seconds) feeds the match_duration token.
 func ComputeScoreVars(p model.Player, duration float64, preset formula.Preset, vars []formula.Variable) (float64, error) {
 	if preset.Kind == "expression" {
 		if preset.Expression == "" {
@@ -379,7 +362,6 @@ func ComputeScoreVars(p model.Player, duration float64, preset formula.Preset, v
 	return total, nil
 }
 
-// ScoreLinear scores with an explicit Weights struct.
 func ScoreLinear(p model.Player, w Weights) float64 {
 	total := 0.0
 	wm := map[string]float64{}
@@ -391,7 +373,6 @@ func ScoreLinear(p model.Player, w Weights) float64 {
 	return total
 }
 
-// RankedPlayers sorts the two real teams by score, highest first.
 func RankedPlayers(result model.Result, preset formula.Preset, vars []formula.Variable) ([]model.Player, error) {
 	type scored struct {
 		player model.Player
@@ -417,7 +398,6 @@ func RankedPlayers(result model.Result, preset formula.Preset, vars []formula.Va
 	return out, nil
 }
 
-// RankTeam sorts a single team's (real) players by score, highest first.
 func RankTeam(result model.Result, team string, preset formula.Preset, vars []formula.Variable) ([]model.Player, error) {
 	filtered := make([]model.Player, 0, 5)
 	for _, p := range result.Players {
@@ -430,8 +410,6 @@ func RankTeam(result model.Result, team string, preset formula.Preset, vars []fo
 	return RankedPlayers(full, preset, vars)
 }
 
-// SelectMvps returns the three podium spots: winner's top two and loser's top
-// one. Mirrors the python select_mvps.
 func SelectMvps(result model.Result, preset formula.Preset, vars []formula.Variable) (map[string]*model.Player, error) {
 	type scored struct {
 		player model.Player

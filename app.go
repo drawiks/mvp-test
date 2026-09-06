@@ -19,7 +19,6 @@ import (
 
 const parserURLDefault = "http://localhost:5600"
 
-// App is the Wails application root. Every exported method is bindable.
 type App struct {
 	ctx         context.Context
 	store       *formula.Store
@@ -36,7 +35,6 @@ func NewApp() *App {
 	return &App{}
 }
 
-// startup initialises the app: config dir, preset store, parser URL.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	cfgDir, err := os.UserConfigDir()
@@ -59,10 +57,6 @@ func (a *App) startup(ctx context.Context) {
 	}
 }
 
-// ---- Replays ----
-
-// ParseReplay starts async parsing of a replay. Rows of progress are emitted
-// as "parseProgress", completion as "parseDone".
 func (a *App) ParseReplay(path string) error {
 	if a.ctx == nil {
 		return errors.New("приложение ещё не запущено")
@@ -97,7 +91,6 @@ func (a *App) ParseReplay(path string) error {
 	return nil
 }
 
-// CancelParse aborts the in-flight parse, if any.
 func (a *App) CancelParse() {
 	a.parseMu.Lock()
 	defer a.parseMu.Unlock()
@@ -107,7 +100,6 @@ func (a *App) CancelParse() {
 	}
 }
 
-// ChooseReplay opens the native file dialog and starts parsing the selection.
 func (a *App) ChooseReplay() {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Выберите файл реплея",
@@ -131,10 +123,8 @@ func (a *App) ChooseReplay() {
 	}
 }
 
-// GetParserURL returns the configured parser endpoint.
 func (a *App) GetParserURL() string { return a.parserURL }
 
-// SetParserURL updates and persists the parser endpoint.
 func (a *App) SetParserURL(url string) error {
 	url = strings.TrimSpace(url)
 	if url == "" {
@@ -147,8 +137,6 @@ func (a *App) SetParserURL(url string) error {
 	cfg, _ := json.Marshal(map[string]any{"parser_url": a.parserURL})
 	return os.WriteFile(a.configPath, cfg, 0o644)
 }
-
-// ---- Presets ----
 
 func (a *App) ListPresets() []formula.Preset { return a.store.Presets() }
 
@@ -163,7 +151,6 @@ func (a *App) SetActivePreset(id string) error {
 	return nil
 }
 
-// UpsertPreset adds or replaces a preset after validation.
 func (a *App) UpsertPreset(p formula.Preset) error {
 	if err := a.store.ValidatePreset(p, a.varStore.AllowedNames()); err != nil {
 		return err
@@ -202,7 +189,6 @@ func (a *App) ImportPreset(path string) (formula.Preset, error) {
 	return p, nil
 }
 
-// ImportPresetDialog imports a preset through the native file dialog.
 func (a *App) ImportPresetDialog() (formula.Preset, bool) {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:   "Импорт пресета",
@@ -220,7 +206,6 @@ func (a *App) ImportPresetDialog() (formula.Preset, bool) {
 	return p, true
 }
 
-// ExportPresetDialog exports the preset through the native save dialog.
 func (a *App) ExportPresetDialog(id string) (bool, error) {
 	p, ok := a.store.Get(id)
 	if !ok {
@@ -241,11 +226,8 @@ func (a *App) ExportPresetDialog(id string) (bool, error) {
 	return true, nil
 }
 
-// ---- Variables ----
-
 func (a *App) ListVariables() []formula.Variable { return a.varStore.Variables() }
 
-// UpsertVariable validates and saves (or replaces) a user variable.
 func (a *App) UpsertVariable(v formula.Variable) error {
 	if err := a.varStore.ValidateVariable(v); err != nil {
 		return err
@@ -265,9 +247,6 @@ func (a *App) RemoveVariable(id string) error {
 	return nil
 }
 
-// EvalVariable validates a variable expression and returns its value against
-// the given base stat map (real player stats or test data). The name is only
-// used for display/validation of self-reference and is not required.
 func (a *App) EvalVariable(name, expr string, base map[string]float64) (float64, error) {
 	if strings.TrimSpace(expr) == "" {
 		return 0, errors.New("Введите выражение переменной")
@@ -284,8 +263,6 @@ func (a *App) EvalVariable(name, expr string, base map[string]float64) (float64,
 	return formula.Eval(expr, env)
 }
 
-// TestPlayerStats returns a plausible player's base stats for previewing
-// variables when no replay is loaded.
 func (a *App) TestPlayerStats() map[string]float64 {
 	p := model.Player{
 		Kills: 10, Deaths: 4, Assists: 7, LastHits: 250, GPM: 580, XPM: 640,
@@ -293,12 +270,11 @@ func (a *App) TestPlayerStats() map[string]float64 {
 		StunDuration: 45, CampsStacked: 9, RunePickups: 5, FirstBlood: true,
 		GoldSpentWards: 500, GoldSpentSmoke: 100, GoldSpentDust: 50,
 		BuffsDuration: 700, Save: 300, Purge: 120, ShieldUptime: 40,
-		TimeDead: 480,
+		TimeDead: 480, Position: 2, Lane: "mid",
 	}
 	return mvp.PlayerVars(p, 3600)
 }
 
-// ImportVariableDialog imports a variable through the native file dialog.
 func (a *App) ImportVariableDialog() (formula.Variable, bool) {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:   "Импорт переменной",
@@ -327,7 +303,6 @@ func (a *App) ImportVariableDialog() (formula.Variable, bool) {
 	return v, true
 }
 
-// ExportVariableDialog exports a variable through the native save dialog.
 func (a *App) ExportVariableDialog(id string) (bool, error) {
 	target, ok := a.varStore.Get(id)
 	if !ok {
@@ -351,13 +326,8 @@ func (a *App) ExportVariableDialog(id string) (bool, error) {
 	return true, nil
 }
 
-// CurrentPreset returns the active preset (for binding).
 func (a *App) CurrentPreset() formula.Preset { return a.store.Active() }
 
-// ---- Scores ----
-
-// EvalPreview re-scores every played hero with the given expression without
-// changing the active preset.
 func (a *App) EvalPreview(expr string) ([]PlayerView, error) {
 	a.resultMu.Lock()
 	defer a.resultMu.Unlock()
@@ -368,11 +338,8 @@ func (a *App) EvalPreview(expr string) ([]PlayerView, error) {
 	return BuildViews(*a.result, preset, a.varStore.Variables())
 }
 
-// Recompute re-scores the stored result with the active preset and emits
-// "resultUpdated".
 func (a *App) Recompute() { a.EmitResult() }
 
-// EmitResult broadcasts the current result + active preset scores to the UI.
 func (a *App) EmitResult() {
 	a.resultMu.Lock()
 	defer a.resultMu.Unlock()
@@ -388,7 +355,6 @@ func (a *App) EmitResult() {
 	runtime.EventsEmit(a.ctx, "matchInfo", matchInfoOf(*a.result, a.store.Active().Name))
 }
 
-// MatchInfo is the header bar summary of the loaded replay.
 type MatchInfo struct {
 	MatchID      int64  `json:"matchId"`
 	DurationSec  int64  `json:"durationSec"`
@@ -417,7 +383,6 @@ func matchInfoOf(result model.Result, presetName string) MatchInfo {
 	}
 }
 
-// HeroImageURL returns a CDN url of the hero portrait.
 func (a *App) HeroImageURL(hero string) string {
 	if hero == "" {
 		return ""
@@ -477,7 +442,6 @@ func BuildViews(result model.Result, preset formula.Preset, vars []formula.Varia
 	return views, nil
 }
 
-// PlayerView is a player flattened with scoring metadata.
 type PlayerView struct {
 	model.Player
 	Score       float64            `json:"Score"`

@@ -48,6 +48,8 @@ export namespace main {
 	    Hero: string;
 	    Team: string;
 	    Name: string;
+	    Position: number;
+	    Lane: string;
 	    Kills: number;
 	    Deaths: number;
 	    Assists: number;
@@ -107,6 +109,8 @@ export namespace main {
 	        this.Hero = source["Hero"];
 	        this.Team = source["Team"];
 	        this.Name = source["Name"];
+	        this.Position = source["Position"];
+	        this.Lane = source["Lane"];
 	        this.Kills = source["Kills"];
 	        this.Deaths = source["Deaths"];
 	        this.Assists = source["Assists"];

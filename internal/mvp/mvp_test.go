@@ -352,3 +352,30 @@ func TestComputeScoreWithMatchDuration(t *testing.T) {
 		t.Fatalf("got %v want 7231.6", got)
 	}
 }
+
+func TestPlayerVarsPosition(t *testing.T) {
+	vars := PlayerVars(model.Player{Position: 3}, 0)
+	if vars["position"] != 3 {
+		t.Fatalf("position = %v, want 3", vars["position"])
+	}
+}
+
+func TestComputeScoreWithPositionIf(t *testing.T) {
+	p := model.Player{Kills: 10, Position: 1}
+	preset := formula.Preset{ID: "e", Name: "E", Kind: "expression", Expression: "if position == 1 { kills * 2 } else { kills }"}
+	got, err := ComputeScoreVars(p, 0, preset, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(got-20) > 1e-9 {
+		t.Fatalf("got %v want 20", got)
+	}
+	p.Position = 4
+	got, err = ComputeScoreVars(p, 0, preset, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(got-10) > 1e-9 {
+		t.Fatalf("got %v want 10", got)
+	}
+}
