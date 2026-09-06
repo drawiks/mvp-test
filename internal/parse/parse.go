@@ -249,7 +249,7 @@ func parseFromHTTP(ctx context.Context, path, parserURL string) (model.Result, e
 	if err != nil {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrReplay, err)
 	}
-	events, err := parser.FetchFromParser(demData, parserURL)
+	events, err := parser.FetchFromParserContext(ctx, demData, parserURL)
 	if err != nil {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrHTTP, err)
 	}
