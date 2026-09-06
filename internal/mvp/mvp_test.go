@@ -299,7 +299,7 @@ func TestComputeScoreVars(t *testing.T) {
 	vars := []formula.Variable{
 		{ID: "a", Name: "my_var", Expression: "time_dead / max(deaths, 1)"},
 	}
-	got, err := ComputeScoreVars(p, preset, vars)
+	got, err := ComputeScoreVars(p, 0, preset, vars)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,11 +315,40 @@ func TestComputeScoreVarsDependencies(t *testing.T) {
 		{ID: "1", Name: "a", Expression: "time_dead / max(deaths, 1)"},
 		{ID: "2", Name: "b", Expression: "a * 3"},
 	}
-	got, err := ComputeScoreVars(p, preset, vars)
+	got, err := ComputeScoreVars(p, 0, preset, vars)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if math.Abs(got-360) > 1e-9 {
 		t.Fatalf("got %v want 360", got)
+	}
+}
+
+func TestPlayerVarsNewTokens(t *testing.T) {
+	p := model.Player{WisdomsCaptured: 3, WatchersCaptured: 2, LotusesGathered: 5, CourierKills: 1}
+	vars := PlayerVars(p, 3615.8)
+	checks := map[string]float64{
+		"wisdoms_captured":  3,
+		"watchers_captured": 2,
+		"lotuses_gathered":  5,
+		"courier_kills":     1,
+		"match_duration":    3615.8,
+	}
+	for token, want := range checks {
+		if got := vars[token]; got != want {
+			t.Errorf("%s = %v, want %v", token, got, want)
+		}
+	}
+}
+
+func TestComputeScoreWithMatchDuration(t *testing.T) {
+	p := model.Player{Kills: 2}
+	preset := formula.Preset{ID: "e", Name: "E", Kind: "expression", Expression: "match_duration * kills"}
+	got, err := ComputeScoreVars(p, 3615.8, preset, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(got-7231.6) > 1e-9 {
+		t.Fatalf("got %v want 7231.6", got)
 	}
 }

@@ -199,3 +199,25 @@ func TestCanonicalHero(t *testing.T) {
 		}
 	}
 }
+
+func TestFromPlayerNewStats(t *testing.T) {
+	r, err := ReadAggregatedJSON([]byte(`
+	{"duration_sec": 2507, "radiant_win": true,
+	 "players": [
+	   {"steam_id": 1, "player_id": 0, "hero_id": 1, "hero": "H",
+	    "team": "radiant", "name": "n",
+	    "wisdoms_captured": 3, "watchers_captured": 2,
+	    "lotuses_gathered": 5, "courier_kills": 1}
+	 ]}
+	`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := r.Players[0]
+	if p.WisdomsCaptured != 3 || p.WatchersCaptured != 2 || p.LotusesGathered != 5 || p.CourierKills != 1 {
+		t.Fatalf("new stats: %+v", p)
+	}
+	if r.DurationSec != 2507 {
+		t.Fatalf("duration_sec %v", r.DurationSec)
+	}
+}

@@ -386,3 +386,28 @@ func TestSplitExpressionEmpty(t *testing.T) {
 		t.Fatalf("%v %q", w, tail)
 	}
 }
+
+func TestStatsV2Registered(t *testing.T) {
+	tokens := []string{
+		"wisdoms_captured", "watchers_captured", "lotuses_gathered", "courier_kills",
+		"match_duration",
+	}
+	for _, tok := range tokens {
+		if !StatTokens(tok) {
+			t.Errorf("%s missing from statTokens", tok)
+		}
+	}
+	if err := Validate("match_duration * 3 + wisdoms_captured + courier_kills", statTokens); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExpressionToWeightsNewStats(t *testing.T) {
+	got, ok := ExpressionToWeights("wisdoms_captured * 2 + courier_kills * 3.5 + lotuses_gathered * 1")
+	if !ok || got["wisdoms_captured"] != 2 || got["courier_kills"] != 3.5 || got["lotuses_gathered"] != 1 {
+		t.Fatalf("got %v ok %v", got, ok)
+	}
+	if _, ok := ExpressionToWeights("match_duration * 3"); ok {
+		t.Fatal("match_duration is expression-only, must not convert to linear weights")
+	}
+}

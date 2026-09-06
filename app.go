@@ -295,7 +295,7 @@ func (a *App) TestPlayerStats() map[string]float64 {
 		BuffsDuration: 700, Save: 300, Purge: 120, ShieldUptime: 40,
 		TimeDead: 480,
 	}
-	return mvp.PlayerVars(p)
+	return mvp.PlayerVars(p, 3600)
 }
 
 // ImportVariableDialog imports a variable through the native file dialog.
@@ -455,11 +455,12 @@ func BuildViews(result model.Result, preset formula.Preset, vars []formula.Varia
 		}
 	}
 	views := make([]PlayerView, 0, len(result.Players))
+	duration := float64(result.DurationSec)
 	for _, p := range result.Players {
 		if p.Team != "radiant" && p.Team != "dire" {
 			continue
 		}
-		score, err := mvp.ComputeScoreVars(p, preset, vars)
+		score, err := mvp.ComputeScoreVars(p, duration, preset, vars)
 		if err != nil {
 			return nil, err
 		}
@@ -470,7 +471,7 @@ func BuildViews(result model.Result, preset formula.Preset, vars []formula.Varia
 			GlobalPlace: globalPlace[p.SteamID],
 			IsWinner:    p.Team == result.WinnerTeam(),
 			MvpRole:     mvpRole[p.SteamID],
-			Stats:       mvp.PlayerVars(p),
+			Stats:       mvp.PlayerVars(p, duration),
 		})
 	}
 	return views, nil

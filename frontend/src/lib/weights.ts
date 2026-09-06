@@ -3,9 +3,10 @@ export interface WeightMeta {
   label: string;
   group: string;
   unit: string;
+  /** True for tokens usable in expressions/variables but not as linear weights. */
+  chipOnly?: boolean;
 }
 
-/** Coefficient editor schema, mirror of the Go runtime key list. */
 /** Coefficient editor schema, mirror of the Go runtime key list. */
 export const WEIGHT_META: WeightMeta[] = [
   { key: "kills", label: "Убийства", group: "Бой", unit: "×" },
@@ -42,7 +43,15 @@ export const WEIGHT_META: WeightMeta[] = [
   { key: "gold_spent_dust", label: "Дасты (голд)", group: "Утилити", unit: "÷" },
   { key: "gold_lost", label: "Потеряно голды", group: "Утилити", unit: "÷" },
   { key: "damage_taken", label: "Полученный урон", group: "Защита", unit: "÷" },
+  { key: "wisdoms_captured", label: "Мудрость", group: "Фарм", unit: "×" },
+  { key: "watchers_captured", label: "Смотровые", group: "Фарм", unit: "×" },
+  { key: "lotuses_gathered", label: "Лотосы", group: "Фарм", unit: "×" },
+  { key: "courier_kills", label: "Убийства курьеров", group: "Бой", unit: "×" },
+  { key: "match_duration", label: "Длительность матча", group: "Фарм", unit: "×", chipOnly: true },
 ];
+
+/** Every scoring token usable as a chip (excludes display-only networth). */
+export const WEIGHT_TOKENS = WEIGHT_META.filter((m) => m.key !== "networth");
 
 /** Division-ish stats scale by dividing; display helper only. */
 export function unitHint(meta: WeightMeta, weight: number): string {

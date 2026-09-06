@@ -35,6 +35,9 @@ var Stats = []Stat{
 	{"break_duration", "Break"}, {"disarm_duration", "Disarm"},
 	{"heal_duration", "Heal Time"}, {"heal_value", "Heal Value"},
 	{"gold_lost", "Gold Lost"}, {"time_dead", "Time Dead"},
+	{"wisdoms_captured", "Wisdoms Captured"}, {"watchers_captured", "Watchers Captured"},
+	{"lotuses_gathered", "Lotuses Gathered"}, {"courier_kills", "Courier Kills"},
+	{"match_duration", "Match Duration"},
 }
 
 var (
@@ -67,6 +70,8 @@ func init() {
 		{"break_duration", "break_duration"}, {"disarm_duration", "disarm_duration"},
 		{"heal_duration", "heal_duration"}, {"heal_value", "heal_value"},
 		{"gold_lost", "gold_lost"}, {"time_dead", "time_dead"},
+		{"wisdoms_captured", "wisdoms_captured"}, {"watchers_captured", "watchers_captured"},
+		{"lotuses_gathered", "lotuses_gathered"}, {"courier_kills", "courier_kills"},
 	}
 	exprTerms = terms
 	for _, t := range terms {

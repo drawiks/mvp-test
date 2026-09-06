@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { buildFormulaPreview, linearToExpression } from "@/lib/format";
-import { WEIGHT_META } from "@/lib/weights";
+import { WEIGHT_META, WEIGHT_TOKENS } from "@/lib/weights";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -23,8 +23,9 @@ type Props = {
   onChange: () => Promise<void> | void;
 };
 
-// networth is not a scoring token in the engine - hide it from the editor.
-const EDITABLE = WEIGHT_META.filter((m) => m.key !== "networth");
+// networth is not a scoring token and chipOnly tokens are expression-only -
+// neither appears as a linear weight row.
+const EDITABLE = WEIGHT_META.filter((m) => m.key !== "networth" && !m.chipOnly);
 const GROUPS = ["Бой", "Фарм", "Утилити", "Защита"].map((g) => ({ group: g, items: EDITABLE.filter((m) => m.group === g) }));
 
 function sliderRange(weights: Record<string, number>) {
@@ -281,7 +282,7 @@ function EditorButton({
         </DialogHeader>
         <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} className="font-mono text-[12px]" />
         <div className="flex flex-wrap gap-1">
-          {EDITABLE.map((m) => (
+          {WEIGHT_TOKENS.map((m) => (
             <Button key={m.key} variant="outline" size="sm" className="h-6 px-1.5 font-mono text-[10px]" onClick={() => setText((t) => `${t} ${t ? "+ " : ""}${m.key}*`)}>
               {m.key}
             </Button>

@@ -84,6 +84,10 @@ export namespace main {
 	    HealDuration: number;
 	    HealValue: number;
 	    GoldLost: number;
+	    WisdomsCaptured: number;
+	    WatchersCaptured: number;
+	    LotusesGathered: number;
+	    CourierKills: number;
 	    Score: number;
 	    TeamPlace: number;
 	    GlobalPlace: number;
@@ -139,6 +143,10 @@ export namespace main {
 	        this.HealDuration = source["HealDuration"];
 	        this.HealValue = source["HealValue"];
 	        this.GoldLost = source["GoldLost"];
+	        this.WisdomsCaptured = source["WisdomsCaptured"];
+	        this.WatchersCaptured = source["WatchersCaptured"];
+	        this.LotusesGathered = source["LotusesGathered"];
+	        this.CourierKills = source["CourierKills"];
 	        this.Score = source["Score"];
 	        this.TeamPlace = source["TeamPlace"];
 	        this.GlobalPlace = source["GlobalPlace"];

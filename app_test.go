@@ -92,7 +92,7 @@ func TestEvalVariableAgainstLoadedPlayer(t *testing.T) {
 	a := fixture(t)
 	// Use a stored disabled variable store; find first player's base stats.
 	p := a.result.Players[0]
-	v, err := a.EvalVariable("dead_ratio", "time_dead / max(deaths, 1)", mvp.PlayerVars(p))
+	v, err := a.EvalVariable("dead_ratio", "time_dead / max(deaths, 1)", mvp.PlayerVars(p, 0))
 	if err != nil {
 		t.Fatal(err)
 	}

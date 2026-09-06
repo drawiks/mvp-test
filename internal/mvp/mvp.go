@@ -33,18 +33,22 @@ type Weights struct {
 	Purge          float64
 	ShieldUptime   float64
 
-	FearDuration    float64
-	RootsDuration   float64
-	LeashDuration   float64
-	TrapDuration    float64
-	TauntDuration   float64
-	SilenceDuration float64
-	BreakDuration   float64
-	DisarmDuration  float64
-	HealDuration    float64
-	HealValue       float64
-	GoldLost        float64
-	TimeDead        float64
+	FearDuration     float64
+	RootsDuration    float64
+	LeashDuration    float64
+	TrapDuration     float64
+	TauntDuration    float64
+	SilenceDuration  float64
+	BreakDuration    float64
+	DisarmDuration   float64
+	HealDuration     float64
+	HealValue        float64
+	GoldLost         float64
+	TimeDead         float64
+	WisdomsCaptured  float64
+	WatchersCaptured float64
+	LotusesGathered  float64
+	CourierKills     float64
 }
 
 // DefaultWeights matches the python DEFAULT_LINEAR_WEIGHTS.
@@ -74,27 +78,31 @@ var weightKeys = map[string]weightField{
 		}
 		return 0
 	}},
-	"hero_damage":      {"HeroDamage", "hero_damage", func(p *model.Player) float64 { return float64(p.HeroDamage) }},
-	"damage_taken":     {"DamageTaken", "damage_taken", func(p *model.Player) float64 { return float64(p.DamageTaken) }},
-	"gold_spent_wards": {"GoldSpentWards", "gold_spent_wards", func(p *model.Player) float64 { return float64(p.GoldSpentWards) }},
-	"gold_spent_smoke": {"GoldSpentSmoke", "gold_spent_smoke", func(p *model.Player) float64 { return float64(p.GoldSpentSmoke) }},
-	"gold_spent_dust":  {"GoldSpentDust", "gold_spent_dust", func(p *model.Player) float64 { return float64(p.GoldSpentDust) }},
-	"buffs_duration":   {"BuffsDuration", "buffs_duration", func(p *model.Player) float64 { return p.BuffsDuration }},
-	"save":             {"Save", "save", func(p *model.Player) float64 { return p.Save }},
-	"purge":            {"Purge", "purge", func(p *model.Player) float64 { return p.Purge }},
-	"shield_uptime":    {"ShieldUptime", "shield_uptime", func(p *model.Player) float64 { return p.ShieldUptime }},
-	"fear_duration":    {"FearDuration", "fear_duration", func(p *model.Player) float64 { return p.FearDuration }},
-	"roots_duration":   {"RootsDuration", "roots_duration", func(p *model.Player) float64 { return p.RootsDuration }},
-	"leash_duration":   {"LeashDuration", "leash_duration", func(p *model.Player) float64 { return p.LeashDuration }},
-	"trap_duration":    {"TrapDuration", "trap_duration", func(p *model.Player) float64 { return p.TrapDuration }},
-	"taunt_duration":   {"TauntDuration", "taunt_duration", func(p *model.Player) float64 { return p.TauntDuration }},
-	"silence_duration": {"SilenceDuration", "silence_duration", func(p *model.Player) float64 { return p.SilenceDuration }},
-	"break_duration":   {"BreakDuration", "break_duration", func(p *model.Player) float64 { return p.BreakDuration }},
-	"disarm_duration":  {"DisarmDuration", "disarm_duration", func(p *model.Player) float64 { return p.DisarmDuration }},
-	"heal_duration":    {"HealDuration", "heal_duration", func(p *model.Player) float64 { return p.HealDuration }},
-	"heal_value":       {"HealValue", "heal_value", func(p *model.Player) float64 { return p.HealValue }},
-	"gold_lost":        {"GoldLost", "gold_lost", func(p *model.Player) float64 { return p.GoldLost }},
-	"time_dead":        {"TimeDead", "time_dead", func(p *model.Player) float64 { return p.TimeDead }},
+	"hero_damage":       {"HeroDamage", "hero_damage", func(p *model.Player) float64 { return float64(p.HeroDamage) }},
+	"damage_taken":      {"DamageTaken", "damage_taken", func(p *model.Player) float64 { return float64(p.DamageTaken) }},
+	"gold_spent_wards":  {"GoldSpentWards", "gold_spent_wards", func(p *model.Player) float64 { return float64(p.GoldSpentWards) }},
+	"gold_spent_smoke":  {"GoldSpentSmoke", "gold_spent_smoke", func(p *model.Player) float64 { return float64(p.GoldSpentSmoke) }},
+	"gold_spent_dust":   {"GoldSpentDust", "gold_spent_dust", func(p *model.Player) float64 { return float64(p.GoldSpentDust) }},
+	"buffs_duration":    {"BuffsDuration", "buffs_duration", func(p *model.Player) float64 { return p.BuffsDuration }},
+	"save":              {"Save", "save", func(p *model.Player) float64 { return p.Save }},
+	"purge":             {"Purge", "purge", func(p *model.Player) float64 { return p.Purge }},
+	"shield_uptime":     {"ShieldUptime", "shield_uptime", func(p *model.Player) float64 { return p.ShieldUptime }},
+	"fear_duration":     {"FearDuration", "fear_duration", func(p *model.Player) float64 { return p.FearDuration }},
+	"roots_duration":    {"RootsDuration", "roots_duration", func(p *model.Player) float64 { return p.RootsDuration }},
+	"leash_duration":    {"LeashDuration", "leash_duration", func(p *model.Player) float64 { return p.LeashDuration }},
+	"trap_duration":     {"TrapDuration", "trap_duration", func(p *model.Player) float64 { return p.TrapDuration }},
+	"taunt_duration":    {"TauntDuration", "taunt_duration", func(p *model.Player) float64 { return p.TauntDuration }},
+	"silence_duration":  {"SilenceDuration", "silence_duration", func(p *model.Player) float64 { return p.SilenceDuration }},
+	"break_duration":    {"BreakDuration", "break_duration", func(p *model.Player) float64 { return p.BreakDuration }},
+	"disarm_duration":   {"DisarmDuration", "disarm_duration", func(p *model.Player) float64 { return p.DisarmDuration }},
+	"heal_duration":     {"HealDuration", "heal_duration", func(p *model.Player) float64 { return p.HealDuration }},
+	"heal_value":        {"HealValue", "heal_value", func(p *model.Player) float64 { return p.HealValue }},
+	"gold_lost":         {"GoldLost", "gold_lost", func(p *model.Player) float64 { return p.GoldLost }},
+	"time_dead":         {"TimeDead", "time_dead", func(p *model.Player) float64 { return p.TimeDead }},
+	"wisdoms_captured":  {"WisdomsCaptured", "wisdoms_captured", func(p *model.Player) float64 { return float64(p.WisdomsCaptured) }},
+	"watchers_captured": {"WatchersCaptured", "watchers_captured", func(p *model.Player) float64 { return float64(p.WatchersCaptured) }},
+	"lotuses_gathered":  {"LotusesGathered", "lotuses_gathered", func(p *model.Player) float64 { return float64(p.LotusesGathered) }},
+	"courier_kills":     {"CourierKills", "courier_kills", func(p *model.Player) float64 { return float64(p.CourierKills) }},
 }
 
 type weightField struct {
@@ -174,6 +182,14 @@ func (w *Weights) value(key string) float64 {
 		return w.GoldLost
 	case "TimeDead":
 		return w.TimeDead
+	case "WisdomsCaptured":
+		return w.WisdomsCaptured
+	case "WatchersCaptured":
+		return w.WatchersCaptured
+	case "LotusesGathered":
+		return w.LotusesGathered
+	case "CourierKills":
+		return w.CourierKills
 	}
 	return 0
 }
@@ -266,13 +282,22 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 			w.GoldLost = v
 		case "TimeDead":
 			w.TimeDead = v
+		case "WisdomsCaptured":
+			w.WisdomsCaptured = v
+		case "WatchersCaptured":
+			w.WatchersCaptured = v
+		case "LotusesGathered":
+			w.LotusesGathered = v
+		case "CourierKills":
+			w.CourierKills = v
 		}
 	}
 	return w
 }
 
-// PlayerVars exposes every formula token for a player.
-func PlayerVars(p model.Player) map[string]float64 {
+// PlayerVars exposes every formula token for a player. duration is the match
+// length (seconds), exposed as the match_duration token (constant per player).
+func PlayerVars(p model.Player, duration float64) map[string]float64 {
 	fb := 0.0
 	if p.FirstBlood {
 		fb = 1.0
@@ -292,7 +317,10 @@ func PlayerVars(p model.Player) map[string]float64 {
 		"taunt_duration": p.TauntDuration, "silence_duration": p.SilenceDuration,
 		"break_duration": p.BreakDuration, "disarm_duration": p.DisarmDuration,
 		"heal_duration": p.HealDuration, "heal_value": p.HealValue, "gold_lost": p.GoldLost,
-		"time_dead": p.TimeDead,
+		"time_dead":        p.TimeDead,
+		"wisdoms_captured": float64(p.WisdomsCaptured), "watchers_captured": float64(p.WatchersCaptured),
+		"lotuses_gathered": float64(p.LotusesGathered), "courier_kills": float64(p.CourierKills),
+		"match_duration": duration,
 	}
 }
 
@@ -320,20 +348,20 @@ func PresetWeights(p formula.Preset) Weights {
 }
 
 // ComputeScore scores a player with either a linear preset or an expression
-// preset.
+// preset, with no match duration set.
 func ComputeScore(p model.Player, preset formula.Preset) (float64, error) {
-	return ComputeScoreVars(p, preset, nil)
+	return ComputeScoreVars(p, 0, preset, nil)
 }
 
 // ComputeScoreVars scores a player, resolving the given user variables as
 // additional tokens inside expression presets. Linear presets ignore
-// variables.
-func ComputeScoreVars(p model.Player, preset formula.Preset, vars []formula.Variable) (float64, error) {
+// variables. duration (match length, seconds) feeds the match_duration token.
+func ComputeScoreVars(p model.Player, duration float64, preset formula.Preset, vars []formula.Variable) (float64, error) {
 	if preset.Kind == "expression" {
 		if preset.Expression == "" {
 			return 0, nil
 		}
-		env := PlayerVars(p)
+		env := PlayerVars(p, duration)
 		if len(vars) > 0 {
 			var err error
 			env, err = formula.ResolveVars(env, vars)
@@ -370,11 +398,12 @@ func RankedPlayers(result model.Result, preset formula.Preset, vars []formula.Va
 		score  float64
 	}
 	list := make([]scored, 0, len(result.Players))
+	duration := float64(result.DurationSec)
 	for _, p := range result.Players {
 		if p.Team != "radiant" && p.Team != "dire" {
 			continue
 		}
-		s, err := ComputeScoreVars(p, preset, vars)
+		s, err := ComputeScoreVars(p, duration, preset, vars)
 		if err != nil {
 			return nil, err
 		}
@@ -410,11 +439,12 @@ func SelectMvps(result model.Result, preset formula.Preset, vars []formula.Varia
 	}
 	pick := func(team string) ([]scored, error) {
 		var list []scored
+		duration := float64(result.DurationSec)
 		for i := range result.Players {
 			if result.Players[i].Team != team {
 				continue
 			}
-			s, err := ComputeScoreVars(result.Players[i], preset, vars)
+			s, err := ComputeScoreVars(result.Players[i], duration, preset, vars)
 			if err != nil {
 				return nil, err
 			}

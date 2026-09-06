@@ -36,17 +36,21 @@ type Player struct {
 	ShieldUptime   float64
 
 	// Stats provided by odota/parser that the python version could not source.
-	FearDuration    float64
-	RootsDuration   float64
-	LeashDuration   float64
-	TrapDuration    float64
-	TauntDuration   float64
-	SilenceDuration float64
-	BreakDuration   float64
-	DisarmDuration  float64
-	HealDuration    float64
-	HealValue       float64
-	GoldLost        float64
+	FearDuration     float64
+	RootsDuration    float64
+	LeashDuration    float64
+	TrapDuration     float64
+	TauntDuration    float64
+	SilenceDuration  float64
+	BreakDuration    float64
+	DisarmDuration   float64
+	HealDuration     float64
+	HealValue        float64
+	GoldLost         float64
+	WisdomsCaptured  int
+	WatchersCaptured int
+	LotusesGathered  int
+	CourierKills     int
 }
 
 // Result is a fully parsed match.

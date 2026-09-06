@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { WEIGHT_META } from "@/lib/weights";
+import { WEIGHT_TOKENS } from "@/lib/weights";
 import { heroName } from "@/lib/heroNames";
 
 type Props = {
@@ -17,9 +17,9 @@ type Props = {
   children?: React.ReactNode;
 };
 
-// Reusable token chips: base stats (exclude networth, not a scoring token) +
+// Reusable token chips: all scoring tokens (exclude display-only networth) +
 // the operators/functions are a fixed hint line.
-const TOKENS = WEIGHT_META.filter((m) => m.key !== "networth");
+const TOKENS = WEIGHT_TOKENS;
 const FUNCS_HINT = "+ − * / ** · функции max( ) min( ) abs( ) round( ) · max(deaths,1) защитит от деления на ноль";
 
 export default function ManageVariables({ views, children }: Props) {
