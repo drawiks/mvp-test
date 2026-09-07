@@ -46,8 +46,24 @@ func (s *VariableStore) load() {
 		return
 	}
 	for _, v := range file.Variables {
-		s.add(v.variable())
+		v := v.variable()
+		v.Expression = MigrateExpression(v.Expression)
+		s.add(v)
 	}
+}
+
+// NameTaken reports whether another variable already uses this name
+// (case-insensitive, ignoring the variable itself).
+func (s *VariableStore) NameTaken(name, selfID string) bool {
+	for _, v := range s.variables {
+		if v.ID == selfID {
+			continue
+		}
+		if strings.EqualFold(v.Name, name) {
+			return true
+		}
+	}
+	return false
 }
 
 type jsonVariable struct {

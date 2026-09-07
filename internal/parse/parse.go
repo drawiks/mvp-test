@@ -45,11 +45,22 @@ var slugByID = func() map[int]string {
 	return m
 }()
 
+var heroAliases = map[string]string{
+	"anti_mage":       "antimage",
+	"vengeful_spirit": "vengefulspirit",
+	"queen_of_pain":   "queenofpain",
+	"doom":            "doom_bringer",
+}
+
 func canonicalHero(id int, raw string) string {
-	if slug, ok := slugByID[id]; ok {
-		return slug
+	slug := strings.TrimPrefix(raw, "npc_dota_hero_")
+	if resolved, ok := slugByID[id]; ok {
+		slug = resolved
 	}
-	return strings.TrimPrefix(raw, "npc_dota_hero_")
+	if alias, ok := heroAliases[slug]; ok {
+		return alias
+	}
+	return slug
 }
 
 // ReadAggregatedJSON maps an already-aggregated parser Match object into the
@@ -125,6 +136,9 @@ func FromPlayer(p parser.Player) model.Player {
 		Save:           sumCategory(p.BuffSources, "save"),
 		Purge:          sumCategory(p.BuffSources, "purge"),
 		ShieldUptime:   sumCategory(p.BuffSources, "shield"),
+		BuffStatsDuration: sumCategory(p.BuffSources, "buff_stats"),
+		InvisibilityDuration: sumCategory(p.BuffSources, "invisibility"),
+		BuffHasteDuration: sumCategory(p.BuffSources, "buff_haste"),
 
 		FearDuration:     p.FearDuration,
 		RootsDuration:    p.RootsDuration,
@@ -136,7 +150,6 @@ func FromPlayer(p parser.Player) model.Player {
 		DisarmDuration:   p.DisarmDuration,
 		HealDuration:     p.HealDuration,
 		HealValue:        p.HealValue,
-		GoldLost:         float64(p.GoldLost),
 		WisdomsCaptured:  p.WisdomsCaptured,
 		WatchersCaptured: p.WatchersCaptured,
 		LotusesGathered:  p.LotusesGathered,

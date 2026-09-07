@@ -4,9 +4,6 @@ import type { formula, main } from "../../wailsjs/go/models";
 import { heroImageURL } from "@/lib/hero";
 import { heroName } from "@/lib/heroNames";
 import { dominantColor, withAlpha } from "@/lib/color";
-import { AnimatedNumber } from "@/components/ui/animated-number";
-import { GlowCard } from "@/components/ui/glow-card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { buildBreakdownTooltip, fmtScore } from "@/lib/format";
@@ -18,39 +15,35 @@ const ROLE_META: Record<
   {
     label: string;
     icon: typeof Crown;
-    glow: string;
     bar: string;
-    ring: string;
-    badgeVariant: "gold" | "secondary" | "bronze";
+    accent: string;
+    textAccent: string;
     place: string;
   }
 > = {
   winner_top1: {
     label: "MVP матча",
     icon: Crown,
-    glow: "rgba(245,197,66,0.35)",
     bar: "bg-gold",
-    ring: "ring-gold/40",
-    badgeVariant: "gold",
-    place: "1",
+    accent: "bg-gold",
+    textAccent: "text-gold",
+    place: "01",
   },
   loser_top1: {
     label: "Лучший в проигравшей команде",
     icon: Swords,
-    glow: "rgba(198,204,212,0.30)",
     bar: "bg-silver",
-    ring: "ring-silver/30",
-    badgeVariant: "secondary",
-    place: "2",
+    accent: "bg-silver",
+    textAccent: "text-silver",
+    place: "02",
   },
   winner_top2: {
     label: "2-й лучший в победившей команде",
     icon: Medal,
-    glow: "rgba(210,138,74,0.35)",
     bar: "bg-bronze",
-    ring: "ring-bronze/40",
-    badgeVariant: "bronze",
-    place: "3",
+    accent: "bg-bronze",
+    textAccent: "text-bronze",
+    place: "03",
   },
 };
 
@@ -118,79 +111,70 @@ function MvpCard({
       : "";
 
   return (
-    <div className={cn("relative", featured && "col-span-1")}>
-      <GlowCard
-        glowColor={meta.glow}
-        className={cn("h-full p-4 ring-1", meta.ring, featured && "bg-gold/[0.04]")}
-        innerClassName="flex h-full flex-col gap-2"
-      >
-        {/* hero art: edge-to-edge right band, tinted by the hero's colors */}
-        {art && (
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-[62%] overflow-hidden rounded-r-xl">
-            <img
-              src={art}
-              alt=""
-              className="h-full w-full scale-125 object-cover object-center"
-              draggable={false}
-            />
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(90deg, ${withAlpha(tint, 0.9)} 0%, ${withAlpha(tint, 0.65)} 32%, transparent 64%)`,
-              }}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/70 via-transparent to-transparent" />
-          </div>
-        )}
+    <div
+      className={cn(
+        "relative flex h-full flex-col gap-2 overflow-hidden rounded-lg border border-border bg-card py-4 pr-4 pl-5",
+        featured && "bg-gold/[0.03]"
+      )}
+    >
+      <span className={cn("absolute inset-y-0 left-0 w-[3px]", meta.accent)} />
 
-        <div className="relative z-10 flex items-center gap-2">
-          <Badge variant={meta.badgeVariant as "gold"} className="size-6 rounded-full px-0">
-            {meta.place}
-          </Badge>
-          <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-            {meta.label}
+      {/* hero art: edge-to-edge right band, tinted by the hero's colors */}
+      {art && (
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-[58%] overflow-hidden">
+          <img src={art} alt="" className="h-full w-full scale-125 object-cover object-center" draggable={false} />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(90deg, ${withAlpha(tint, 0.92)} 0%, ${withAlpha(tint, 0.68)} 32%, transparent 64%)`,
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/70 via-transparent to-transparent" />
+        </div>
+      )}
+
+      <div className="relative z-10 flex items-center gap-1.5">
+        <span className={cn("font-mono text-[11px] font-bold", meta.textAccent)}>{meta.place}</span>
+        <Icon className={cn("size-3.5", meta.textAccent)} />
+        <span className="label-caps truncate">{meta.label}</span>
+      </div>
+
+      <div className="relative z-10 mt-1 min-w-0">
+        <div className={cn("truncate text-lg leading-tight font-bold", meta.textAccent)}>{heroName(v.Hero) || "-"}</div>
+        <div className="flex items-center gap-2">
+          <span className={cn("text-[10px] font-bold tracking-wide uppercase", v.Team === "radiant" ? "text-radiant" : "text-dire")}>
+            {v.Team === "radiant" ? "Radiant" : "Dire"}
           </span>
-          <Icon className="ml-auto size-4 text-muted-foreground" />
+          <span className="truncate text-sm font-medium text-foreground">{v.Name || "-"}</span>
         </div>
+      </div>
 
-        <div className="relative z-10 mt-1 min-w-0">
-          <div className="truncate text-lg leading-tight font-bold text-gold">{heroName(v.Hero) || "-"}</div>
-          <div className="flex items-center gap-2">
-            <Badge variant={v.Team === "radiant" ? "radiant" : "dire"}>{v.Team === "radiant" ? "Radiant" : "Dire"}</Badge>
-            <span className="truncate text-sm font-medium text-foreground">{v.Name || "-"}</span>
-          </div>
-        </div>
-
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="relative z-10 mt-auto space-y-1.5">
-                <div className="flex items-end justify-between gap-2">
-                  <AnimatedNumber
-                    value={v.Score}
-                    precision={2}
-                    format={(n) => fmtScore(n)}
-                    className="text-3xl leading-none font-extrabold tabular-nums"
-                  />
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    K/D/A {v.Kills}/{v.Deaths}/{v.Assists}
-                  </span>
-                </div>
-                <Progress value={(v.Score / maxScore) * 100} color={meta.bar} className="h-1.5" />
-                <div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>Ур. {v.Level}</span>
-                  <span className="tabular-nums">{v.GPM} GPM / {v.XPM} XPM</span>
-                </div>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="relative z-10 mt-auto space-y-1.5">
+              <div className="flex items-end justify-between gap-2">
+                <span className="font-mono text-3xl leading-none font-bold tabular-nums">{fmtScore(v.Score)}</span>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  K/D/A {v.Kills}/{v.Deaths}/{v.Assists}
+                </span>
               </div>
-            </TooltipTrigger>
-            {breakdown && (
-              <TooltipContent side="top" className="max-w-72 whitespace-pre-line font-mono text-[11px]">
-                {breakdown}
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      </GlowCard>
+              <Progress value={(v.Score / maxScore) * 100} color={meta.bar} className="h-1" />
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>Ур. {v.Level}</span>
+                <span className="tabular-nums">
+                  {v.GPM} GPM / {v.XPM} XPM
+                </span>
+              </div>
+            </div>
+          </TooltipTrigger>
+          {breakdown && (
+            <TooltipContent side="top" className="max-w-72 whitespace-pre-line font-mono text-[11px]">
+              {breakdown}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 }

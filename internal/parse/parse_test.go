@@ -54,14 +54,17 @@ func TestAggregatesBuffs(t *testing.T) {
 	      "team": "radiant", "name": "n", "kills": 1, "deaths": 2,
 	      "assists": 3, "level": 4, "last_hits": 5, "networth": 6,
 	      "gpm": 7, "xpm": 8, "healing": 0, "hero_damage": 0,
-	      "damage_taken": 0, "tower_damage": 0, "gold_lost": 120,
+	      "damage_taken": 0, "tower_damage": 0,
 	      "buff_duration": 120.5,
 	      "buff_sources": [
 	        {"inflictor": "a", "category": "save", "duration": 30.0},
 	        {"inflictor": "b", "category": "purge", "duration": 10.5},
 	        {"inflictor": "c", "category": "shield", "duration": 5.0},
 	        {"inflictor": "d", "category": "heal", "duration": 100.0},
-	        {"inflictor": "e", "category": "save", "duration": 1.5}
+	        {"inflictor": "e", "category": "save", "duration": 1.5},
+	        {"inflictor": "f", "category": "buff_stats", "duration": 3.0},
+	        {"inflictor": "g", "category": "invisibility", "duration": 1.5},
+	        {"inflictor": "h", "category": "buff_haste", "duration": 2.5}
 	      ]
 	    }
 	  ]
@@ -74,8 +77,8 @@ func TestAggregatesBuffs(t *testing.T) {
 	if p.BuffsDuration != 120.5 || p.Save != 31.5 || p.Purge != 10.5 || p.ShieldUptime != 5.0 {
 		t.Fatalf("buffs: %+v", p)
 	}
-	if p.GoldLost != 120 {
-		t.Fatalf("gold_lost %v", p.GoldLost)
+	if p.BuffStatsDuration != 3.0 || p.InvisibilityDuration != 1.5 || p.BuffHasteDuration != 2.5 {
+		t.Fatalf("buff_stats/invisibility/haste: %+v", p)
 	}
 }
 
@@ -210,6 +213,10 @@ func TestCanonicalHero(t *testing.T) {
 		{86, "rubick", "rubick"},
 		{0, "vengeless_hero", "vengeless_hero"},
 		{0, "npc_dota_hero_doctor_who", "doctor_who"},
+		{0, "anti_mage", "antimage"},
+		{0, "npc_dota_hero_antimage", "antimage"},
+		{1, "anti_mage", "antimage"},
+		{1, "npc_dota_hero_antimage", "antimage"},
 	}
 	for _, c := range cases {
 		got := canonicalHero(c.id, c.raw)

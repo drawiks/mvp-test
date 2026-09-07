@@ -155,8 +155,11 @@ func (a *App) UpsertPreset(p formula.Preset) error {
 	if err := a.store.ValidatePreset(p, a.varStore.AllowedNames()); err != nil {
 		return err
 	}
-	if p.ID == "standard" || p.ID == "standard_v2" {
+	if p.ID == "standard_v2" || p.ID == "tutorial" {
 		return errors.New("встроенные пресеты нельзя изменять")
+	}
+	if a.store.NameTaken(strings.TrimSpace(p.Name), p.ID) {
+		return errors.New("формула с таким названием уже существует")
 	}
 	a.store.Upsert(p)
 	a.store.Save()
@@ -164,7 +167,7 @@ func (a *App) UpsertPreset(p formula.Preset) error {
 }
 
 func (a *App) RemovePreset(id string) (bool, error) {
-	if id == "standard" || id == "standard_v2" {
+	if id == "standard_v2" || id == "tutorial" {
 		return false, errors.New("встроенные пресеты нельзя удалить")
 	}
 	ok := a.store.Remove(id)
@@ -232,6 +235,9 @@ func (a *App) UpsertVariable(v formula.Variable) error {
 	if err := a.varStore.ValidateVariable(v); err != nil {
 		return err
 	}
+	if a.varStore.NameTaken(strings.TrimSpace(v.Name), v.ID) {
+		return errors.New("переменная с таким названием уже существует")
+	}
 	a.varStore.Add(v)
 	a.varStore.Save()
 	a.EmitResult()
@@ -270,7 +276,8 @@ func (a *App) TestPlayerStats() map[string]float64 {
 		StunDuration: 45, CampsStacked: 9, RunePickups: 5, FirstBlood: true,
 		GoldSpentWards: 500, GoldSpentSmoke: 100, GoldSpentDust: 50,
 		BuffsDuration: 700, Save: 300, Purge: 120, ShieldUptime: 40,
-		TimeDead: 480, Position: 2, Lane: "mid",
+		BuffStatsDuration: 200, InvisibilityDuration: 30, BuffHasteDuration: 60,
+		CreepsStacked: 4, TimeDead: 480, Position: 2, Lane: "mid",
 	}
 	return mvp.PlayerVars(p, 3600)
 }
@@ -336,6 +343,37 @@ func (a *App) EvalPreview(expr string) ([]PlayerView, error) {
 	}
 	preset := formula.Preset{ID: "__preview", Name: "__preview", Kind: "expression", Expression: expr}
 	return BuildViews(*a.result, preset, a.varStore.Variables())
+}
+
+// EvalBreakdown evaluates each top-level term of an expression against a single
+// player, returning one row per term (used by the score breakdown table).
+func (a *App) EvalBreakdown(expression string, playerID int) ([]formula.BreakdownRow, error) {
+	a.resultMu.Lock()
+	defer a.resultMu.Unlock()
+	if a.result == nil {
+		return nil, errors.New("сначала откройте реплей")
+	}
+	var player *model.Player
+	for i := range a.result.Players {
+		if a.result.Players[i].PlayerID == playerID {
+			player = &a.result.Players[i]
+			break
+		}
+	}
+	if player == nil {
+		return nil, errors.New("игрок не найден")
+	}
+	env, err := formula.ResolveVars(mvp.PlayerVars(*player, float64(a.result.DurationSec)), a.varStore.Variables())
+	if err != nil {
+		return nil, err
+	}
+	return formula.Breakdown(expression, env)
+}
+
+// ValidateExpression checks a formula expression without needing a loaded
+// replay. It backs the in-editor linter so syntax errors surface immediately.
+func (a *App) ValidateExpression(expression string) error {
+	return formula.Validate(expression, a.varStore.AllowedNames())
 }
 
 func (a *App) Recompute() { a.EmitResult() }

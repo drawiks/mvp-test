@@ -68,3 +68,33 @@ func TestResolveVarsOrderIndependent(t *testing.T) {
 		t.Fatalf("b=%v want 360", env["b"])
 	}
 }
+
+func TestTutorialPreset(t *testing.T) {
+	s := NewStore("")
+	found := false
+	for _, p := range s.Presets() {
+		if p.ID == "tutorial" {
+			found = true
+			if !isBuiltin(p.ID) || p.Kind != "expression" {
+				t.Fatalf("tutorial preset wrong flags: %+v", p)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("tutorial preset missing from store")
+	}
+	if s.Remove("tutorial") {
+		t.Fatal("built-in tutorial preset was removed")
+	}
+}
+
+func TestVariableStoreNameTaken(t *testing.T) {
+	s := NewVariableStore(filepath.Join(t.TempDir(), "v.json"))
+	s.Add(Variable{ID: "a", Name: "dead_ratio", Expression: "time_dead / max(deaths,1)"})
+	if !s.NameTaken("DEAD_RATIO", "") || !s.NameTaken("dead_ratio", "") {
+		t.Fatal("case-insensitive duplicate not detected")
+	}
+	if s.NameTaken("dead_ratio", "a") {
+		t.Fatal("self-id should not count")
+	}
+}

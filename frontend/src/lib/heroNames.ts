@@ -151,6 +151,7 @@ export function normalizeHeroName(hero: string): string {
 
 /** Unit-derived snake_case -> valve/opendota api slug, for the legacy mismatches. */
 const HERO_ALIASES: Record<string, string> = {
+  anti_mage: "antimage",
   vengeful_spirit: "vengefulspirit",
   queen_of_pain: "queenofpain",
   doom: "doom_bringer",

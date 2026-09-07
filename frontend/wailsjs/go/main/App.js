@@ -22,6 +22,10 @@ export function EmitResult() {
   return window['go']['main']['App']['EmitResult']();
 }
 
+export function EvalBreakdown(arg1, arg2) {
+  return window['go']['main']['App']['EvalBreakdown'](arg1, arg2);
+}
+
 export function EvalPreview(arg1) {
   return window['go']['main']['App']['EvalPreview'](arg1);
 }
@@ -104,4 +108,8 @@ export function UpsertPreset(arg1) {
 
 export function UpsertVariable(arg1) {
   return window['go']['main']['App']['UpsertVariable'](arg1);
+}
+
+export function ValidateExpression(arg1) {
+  return window['go']['main']['App']['ValidateExpression'](arg1);
 }

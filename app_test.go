@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"os"
 	"testing"
 
@@ -61,7 +62,10 @@ func TestBuildViewsStandard(t *testing.T) {
 
 func TestBuildViewsTopScores(t *testing.T) {
 	a := fixture(t)
-	views, err := BuildViews(*a.result, formula.StandardPreset(), nil)
+	views, err := BuildViews(*a.result, formula.Preset{
+		ID: "test", Name: "test", Kind: "linear",
+		Weights: mvp.WeightsToMapping(mvp.DefaultWeights),
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,5 +143,31 @@ func TestUpsertPresetRejectsUnknownToken(t *testing.T) {
 	preset := formula.Preset{ID: "p", Name: "P", Kind: "expression", Expression: "kills * nonexistent_x"}
 	if err := a.UpsertPreset(preset); err == nil {
 		t.Fatal("want error for unknown token")
+	}
+}
+
+func TestEvalBreakdown(t *testing.T) {
+	a := fixture(t)
+	p := a.result.Players[0]
+	rows, err := a.EvalBreakdown("kills * 2;\n assists * 3", p.PlayerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("rows %d", len(rows))
+	}
+	var sum float64
+	for _, r := range rows {
+		sum += r.Value
+	}
+	total, err := a.EvalVariable("total", "kills * 2 + assists * 3", mvp.PlayerVars(p, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(sum-total) > 1e-9 {
+		t.Fatalf("sum %v != total %v", sum, total)
+	}
+	if got, err := a.EvalBreakdown("kills * 2", 999999); err == nil || got != nil {
+		t.Fatal("unknown steamID should error")
 	}
 }

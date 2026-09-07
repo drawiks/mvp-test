@@ -13,6 +13,8 @@ export function CurrentPreset():Promise<formula.Preset>;
 
 export function EmitResult():Promise<void>;
 
+export function EvalBreakdown(arg1:string,arg2:number):Promise<Array<formula.BreakdownRow>>;
+
 export function EvalPreview(arg1:string):Promise<Array<main.PlayerView>>;
 
 export function EvalVariable(arg1:string,arg2:string,arg3:Record<string, number>):Promise<number>;
@@ -54,3 +56,5 @@ export function TestPlayerStats():Promise<Record<string, number>>;
 export function UpsertPreset(arg1:formula.Preset):Promise<void>;
 
 export function UpsertVariable(arg1:formula.Variable):Promise<void>;
+
+export function ValidateExpression(arg1:string):Promise<void>;

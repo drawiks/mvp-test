@@ -1,6 +1,5 @@
-import { Gamepad2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { fmtTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export interface MatchInfo {
   matchId: number;
@@ -11,31 +10,36 @@ export interface MatchInfo {
   presetName: string;
 }
 
+function Stat({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("flex items-baseline gap-1.5", className)}>
+      <span className="label-caps">{label}</span>
+      <span className="text-xs font-semibold tabular-nums text-foreground">{children}</span>
+    </div>
+  );
+}
+
 export default function InfoBar({ info }: { info: MatchInfo | null }) {
   if (!info) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border bg-card/60 px-4 py-1.5 text-xs text-muted-foreground">
-      <span className="flex items-center gap-1.5">
-        <Gamepad2 className="size-3.5" />
-        <span className="font-semibold text-foreground">Матч</span> {info.matchId ? info.matchId : "-"}
-      </span>
-      <span>
-        Длительность <span className="font-semibold tabular-nums text-foreground">{fmtTime(info.durationSec)}</span>
-      </span>
-      <span className="flex items-center gap-1.5">
-        <Badge variant={info.winner === "radiant" ? "radiant" : "dire"} className="normal-case">
-          Поб. {info.winner === "radiant" ? "Radiant" : "Dire"}
-        </Badge>
-        <span className="tabular-nums">
-          <span className="text-radiant font-bold">{info.radiantScore}</span>
-          <span className="mx-1 text-foreground">:</span>
-          <span className="text-dire font-bold">{info.direScore}</span>
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-b border-border bg-card/40 px-4 py-2">
+      <Stat label="Матч">{info.matchId || "-"}</Stat>
+      <div className="hidden h-3 w-px bg-border sm:block" />
+      <Stat label="Время">{fmtTime(info.durationSec)}</Stat>
+      <div className="hidden h-3 w-px bg-border sm:block" />
+      <div className="flex items-center gap-2">
+        <span className="label-caps">Победа</span>
+        <span className={cn("text-xs font-bold", info.winner === "radiant" ? "text-radiant" : "text-dire")}>
+          {info.winner === "radiant" ? "Radiant" : "Dire"}
         </span>
-        <span className="text-muted-foreground">(убийства)</span>
-      </span>
-      <span className="ml-auto tabular-nums">
-        Формула: <span className="font-semibold text-gold">{info.presetName}</span>
-      </span>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          (<span className="text-radiant">{info.radiantScore}</span> : <span className="text-dire">{info.direScore}</span>)
+        </span>
+      </div>
+      <div className="ml-auto flex items-center gap-1.5">
+        <span className="label-caps">Формула</span>
+        <span className="text-xs font-semibold text-gold">{info.presetName}</span>
+      </div>
     </div>
   );
 }

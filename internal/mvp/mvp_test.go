@@ -31,7 +31,7 @@ func linearPreset(name string, w Weights) formula.Preset {
 	}
 }
 
-var testLinear = linearPreset("standard", DefaultWeights)
+var testLinear = linearPreset("standard_v2", DefaultWeights)
 
 func TestParseSchema(t *testing.T) {
 	r := fixtureResult(t)
@@ -47,16 +47,16 @@ func TestDefaultWeightsMatchGolden(t *testing.T) {
 		byName[p.Name] = p
 	}
 	expected := map[string]float64{
-		"oyoy":            50.9669951,
-		"mvhoyeti":        40.92665588,
-		"юный дебустер":   29.9013875,
-		"Мясное пюре":     25.0,
-		"Master Control":  14.33400835,
-		"Scarry":          12.46165745,
-		"Beefsteeek":      7.107,
-		"а за мат извини": 6.2273227,
-		"Daniamaps":       4.95733805,
-		"re_triger":       3.65900567,
+		"oyoy":            47.9669951,
+		"mvhoyeti":        37.92665588,
+		"юный дебустер":   26.9013875,
+		"Мясное пюре":     22.0,
+		"Master Control":  11.33400835,
+		"Scarry":          9.46165745,
+		"Beefsteeek":      4.107,
+		"а за мат извини": 3.2273227,
+		"Daniamaps":       1.95733805,
+		"re_triger":       0.65900567,
 	}
 	for name, want := range expected {
 		got, err := ComputeScore(byName[name], testLinear)
@@ -215,7 +215,7 @@ func TestStandardV2ComputeScore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if math.Abs(got-35.747499999999995) > 1e-9 {
+	if math.Abs(got-33.1475) > 1e-9 {
 		t.Fatalf("got %v", got)
 	}
 }
@@ -227,10 +227,10 @@ func TestStandardV2OnFixture(t *testing.T) {
 		byName[p.Name] = p
 	}
 	expected := map[string]float64{
-		"mvhoyeti":       28.619662352,
-		"юный дебустер":  23.75088,
-		"oyoy":           16.906955183,
-		"Master Control": 9.67692209,
+		"mvhoyeti":       25.719662352,
+		"юный дебустер":  21.15088,
+		"oyoy":           14.606955183,
+		"Master Control": 7.47692209,
 	}
 	for name, want := range expected {
 		got, err := ComputeScore(byName[name], formula.StandardV2Preset())
@@ -260,11 +260,11 @@ func TestLinearToExpressionEquivalence(t *testing.T) {
 	p := model.Player{Kills: 10, Deaths: 4, Assists: 7, LastHits: 250, GPM: 580, XPM: 640,
 		StunDuration: 45, Healing: 9000, TowerDamage: 3200, CampsStacked: 9, RunePickups: 5, FirstBlood: true}
 	w := Weights{}
-	w.Kills, w.DeathsBase, w.Deaths = 0.4, 2.0, 0.5
+	w.Kills, w.Deaths = 0.4, 0.5
 	preset := formula.Preset{
 		ID: "x", Name: "X", Kind: "expression",
 		Expression: formula.LinearToExpression(map[string]float64{
-			"kills": 0.4, "deaths_base": 2.0, "deaths": 0.5,
+			"kills": 0.4, "deaths": 0.5,
 		}),
 	}
 	a, err := ComputeScore(p, preset)

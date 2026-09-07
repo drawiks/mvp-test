@@ -1,44 +1,44 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Dark-only design tokens, palette ported from the classic MVP app
-   (GitHub-dark neutrals + gold accent, radiant/dire team colors). */
+/* Dark-only design tokens: neutral graphite base, gold accent for MVP/rank
+   signal, radiant/dire team colors. One accent color, used sparingly. */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 
-  --background: #0b0e13;
-  --foreground: #e6edf3;
+  --background: #0a0d12;
+  --foreground: #e6ebf1;
 
-  --card: #141922;
-  --card-foreground: #e6edf3;
+  --card: #12161d;
+  --card-foreground: #e6ebf1;
 
-  --popover: #141a23;
-  --popover-foreground: #e6edf3;
+  --popover: #12161d;
+  --popover-foreground: #e6ebf1;
 
-  --primary: #f5c542;
-  --primary-foreground: #1d1706;
+  --primary: #f0b93d;
+  --primary-foreground: #1a1304;
 
-  --secondary: #1c232d;
-  --secondary-foreground: #d5dbe4;
+  --secondary: #1a2029;
+  --secondary-foreground: #ced5df;
 
-  --muted: #161b22;
-  --muted-foreground: #98a2b3;
+  --muted: #141920;
+  --muted-foreground: #8892a0;
 
-  --accent: #202834;
-  --accent-foreground: #e6edf3;
+  --accent: #1c222c;
+  --accent-foreground: #e6ebf1;
 
-  --destructive: #e15241;
+  --destructive: #dd5346;
   --destructive-foreground: #ffffff;
 
-  --border: #232a35;
-  --input: #2c3442;
-  --ring: #f5c542;
+  --border: #1f252f;
+  --input: #2a313d;
+  --ring: #f0b93d;
 
-  --chart-1: #f5c542;
+  --chart-1: #f0b93d;
   --chart-2: #4a9bff;
   --chart-3: #4ecb71;
-  --chart-4: #e15241;
-  --chart-5: #d28a4a;
+  --chart-4: #dd5346;
+  --chart-5: #c98a4f;
 
   color-scheme: dark;
 }
@@ -65,10 +65,10 @@
   --color-ring: var(--ring);
 
   --color-radiant: #4ecb71;
-  --color-dire: #e15241;
-  --color-gold: #f5c542;
+  --color-dire: #dd5346;
+  --color-gold: #f0b93d;
   --color-silver: #c6ccd4;
-  --color-bronze: #d28a4a;
+  --color-bronze: #c98a4f;
   --color-kill: #7bd88f;
   --color-death: #f09090;
 
@@ -81,8 +81,8 @@
   --color-sidebar-foreground: var(--foreground);
   --color-sidebar-background: var(--card);
 
-  --font-sans: "Inter", "Segoe UI", "Ubuntu", system-ui, sans-serif;
-  --font-mono: "Consolas", "Cascadia Code", "JetBrains Mono", monospace;
+  --font-sans: -apple-system, "Segoe UI", "Ubuntu", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "Consolas", "JetBrains Mono", ui-monospace, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -101,6 +101,18 @@
   }
   * {
     border-color: var(--border);
+  }
+}
+
+@layer components {
+  /* Small uppercase tracked section label, used for every group heading
+     in the app (weight groups, panel titles, table sections). */
+  .label-caps {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
   }
 }
 
@@ -131,12 +143,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px dashed rgb(245 197 66 / 0.65);
+  border: 2px dashed rgb(240 185 61 / 0.65);
   border-radius: var(--radius);
-  background: rgb(11 14 19 / 0.62);
-  color: #f5c542;
+  background: rgb(10 13 18 / 0.7);
+  color: #f0b93d;
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.4px;
   pointer-events: none;
 }
+

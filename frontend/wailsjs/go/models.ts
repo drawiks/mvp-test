@@ -1,5 +1,19 @@
 export namespace formula {
 	
+	export class BreakdownRow {
+	    label: string;
+	    value: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BreakdownRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.value = source["value"];
+	    }
+	}
 	export class Preset {
 	    id: string;
 	    name: string;
@@ -75,6 +89,9 @@ export namespace main {
 	    Save: number;
 	    Purge: number;
 	    ShieldUptime: number;
+	    BuffStatsDuration: number;
+	    InvisibilityDuration: number;
+	    BuffHasteDuration: number;
 	    FearDuration: number;
 	    RootsDuration: number;
 	    LeashDuration: number;
@@ -85,7 +102,6 @@ export namespace main {
 	    DisarmDuration: number;
 	    HealDuration: number;
 	    HealValue: number;
-	    GoldLost: number;
 	    WisdomsCaptured: number;
 	    WatchersCaptured: number;
 	    LotusesGathered: number;
@@ -136,6 +152,9 @@ export namespace main {
 	        this.Save = source["Save"];
 	        this.Purge = source["Purge"];
 	        this.ShieldUptime = source["ShieldUptime"];
+	        this.BuffStatsDuration = source["BuffStatsDuration"];
+	        this.InvisibilityDuration = source["InvisibilityDuration"];
+	        this.BuffHasteDuration = source["BuffHasteDuration"];
 	        this.FearDuration = source["FearDuration"];
 	        this.RootsDuration = source["RootsDuration"];
 	        this.LeashDuration = source["LeashDuration"];
@@ -146,7 +165,6 @@ export namespace main {
 	        this.DisarmDuration = source["DisarmDuration"];
 	        this.HealDuration = source["HealDuration"];
 	        this.HealValue = source["HealValue"];
-	        this.GoldLost = source["GoldLost"];
 	        this.WisdomsCaptured = source["WisdomsCaptured"];
 	        this.WatchersCaptured = source["WatchersCaptured"];
 	        this.LotusesGathered = source["LotusesGathered"];

@@ -96,23 +96,10 @@ func TestStoreRoundtrip(t *testing.T) {
 	}
 }
 
-func TestStoreStandardIsBuiltin(t *testing.T) {
-	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
-	if _, ok := s.Get("standard"); !ok {
-		t.Fatal("standard missing")
-	}
-	if s.Remove("standard") {
-		t.Fatal("remove standard should fail")
-	}
-}
-
-func TestStoreUpsertOverwritesExisting(t *testing.T) {
-	// Regression: Upsert/Add must overwrite an existing user preset, so
-	// converting a saved linear preset to an expression one actually sticks.
+func TestStoreOverwritesExisting(t *testing.T) {
 	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
 	s.Upsert(Preset{ID: "x", Name: "X", Kind: "linear", Weights: map[string]float64{"deaths": 0.1}})
 	s.Upsert(Preset{ID: "x", Name: "X", Kind: "expression", Expression: "kills * 5 + deaths"})
-
 	p, ok := s.Get("x")
 	if !ok {
 		t.Fatal("preset missing")
@@ -124,13 +111,13 @@ func TestStoreUpsertOverwritesExisting(t *testing.T) {
 
 func TestStoreBuiltinsNeverOverwritten(t *testing.T) {
 	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
-	s.Upsert(Preset{ID: "standard", Kind: "expression", Expression: "hacked"})
-	s.Add(Preset{ID: "standard_v2", Kind: "linear", Weights: map[string]float64{"kills": 9}})
-	if s.presets["standard"].Expression != "" {
-		t.Fatal("standard builtin was overwritten")
-	}
+	s.Upsert(Preset{ID: "standard_v2", Kind: "linear", Weights: map[string]float64{"kills": 9}})
+	s.Add(Preset{ID: "tutorial", Kind: "linear", Weights: map[string]float64{"kills": 9}})
 	if s.presets["standard_v2"].Expression == "" {
 		t.Fatal("standard_v2 builtin lost its expression")
+	}
+	if s.presets["tutorial"].Expression == "" {
+		t.Fatal("tutorial builtin lost its expression")
 	}
 }
 
@@ -174,10 +161,15 @@ func TestImportExport(t *testing.T) {
 	}
 }
 
-func TestStandardPresetDefaults(t *testing.T) {
-	p := StandardPreset()
-	if p.Weights["kills"] != 0.3 || p.Kind != "linear" {
-		t.Fatalf("%+v", p)
+func TestDefaultLinearWeights(t *testing.T) {
+	if DefaultLinearWeights["kills"] != 0.3 {
+		t.Fatalf("%+v", DefaultLinearWeights)
+	}
+	if _, ok := DefaultLinearWeights["deaths_base"]; ok {
+		t.Fatalf("deaths_base must be gone")
+	}
+	if _, ok := DefaultLinearWeights["gold_lost"]; ok {
+		t.Fatalf("gold_lost must be gone")
 	}
 }
 
@@ -209,7 +201,7 @@ func TestLinearToExpressionValid(t *testing.T) {
 	if err := Validate(expr, statTokens); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"kills * 0.3", "(3 - deaths * 0.3)", "stun_duration * 0.05", "camps_stacked * 0.5"} {
+	for _, want := range []string{"kills * 0.3", "(0 - deaths * 0.3)", "stun_duration * 0.05", "camps_stacked * 0.5"} {
 		if !strings.Contains(expr, want) {
 			t.Fatalf("%s missing in %s", want, expr)
 		}
@@ -220,7 +212,7 @@ func TestExpressionToWeightsRoundtrip(t *testing.T) {
 	expr := LinearToExpression(DefaultLinearWeights)
 	var expected = map[string]float64{}
 	for k, v := range DefaultLinearWeights {
-		if v != 0 || k == "deaths" || k == "deaths_base" {
+		if v != 0 || k == "deaths" {
 			expected[k] = v
 		}
 	}
@@ -254,7 +246,7 @@ func TestNewStatsInExpression(t *testing.T) {
 
 func TestExpressionToWeightsSparse(t *testing.T) {
 	got, ok := ExpressionToWeights("kills * 3 + (2 - deaths * 0.5)")
-	if !ok || got["kills"] != 3.0 || got["deaths_base"] != 2.0 || got["deaths"] != 0.5 {
+	if !ok || got["kills"] != 3.0 || got["deaths"] != 0.5 {
 		t.Fatalf("%v %v", got, ok)
 	}
 }
@@ -277,7 +269,7 @@ func TestLinearToExpressionSkipsAbsent(t *testing.T) {
 }
 
 func TestNegativeCoefficientRoundtrip(t *testing.T) {
-	weights := map[string]float64{"kills": 0.3, "deaths": 0.3, "deaths_base": 3.0, "assists": -0.5}
+	weights := map[string]float64{"kills": 0.3, "deaths": 0.3, "assists": -0.5}
 	expr := LinearToExpression(weights)
 	got, ok := ExpressionToWeights(expr)
 	if !ok {
@@ -297,36 +289,30 @@ func TestExpressionToWeightsDeathsAmbiguity(t *testing.T) {
 	if _, ok := ExpressionToWeights("deaths * 5"); ok {
 		t.Fatal("plain deaths must be refused")
 	}
-	got, ok := ExpressionToWeights("3 - deaths * 0.3")
-	if !ok || got["deaths_base"] != 3.0 || got["deaths"] != 0.3 {
+	got, ok := ExpressionToWeights("(0 - deaths * 0.3)")
+	if !ok || got["deaths"] != 0.3 {
 		t.Fatalf("%v %v", got, ok)
 	}
-	if _, ok := ExpressionToWeights("(2 - deaths * 0.3) + deaths * 0.1"); ok {
+	if _, ok := ExpressionToWeights("(0 - deaths * 0.3) + deaths * 0.1"); ok {
 		t.Fatal("duplicate deaths must be refused")
 	}
 }
 
 func TestExpressionToWeightsDuplicateConstant(t *testing.T) {
-	if _, ok := ExpressionToWeights("kills * 2 + 3 + 5"); ok {
-		t.Fatal("two constants must be refused")
-	}
-	got, ok := ExpressionToWeights("3 + kills * 2")
-	if !ok || got["deaths_base"] != 3.0 || got["kills"] != 2.0 {
+	got, ok := ExpressionToWeights("kills * 2 + 3 + 5")
+	if !ok || got["kills"] != 2.0 {
 		t.Fatalf("%v %v", got, ok)
-	}
-	if _, ok := ExpressionToWeights("3 + (4 - deaths * 0.3)"); ok {
-		t.Fatal("base dup must be refused")
 	}
 }
 
 func TestSplitExpressionV2(t *testing.T) {
 	weights, tail := SplitExpression(StandardV2Formula)
-	for k, want := range map[string]float64{"kills": 0.2, "deaths_base": 3.0, "deaths": 0.3, "first_blood": 1.0} {
+	for k, want := range map[string]float64{"kills": 0.2, "deaths": 0.2, "first_blood": 1.0} {
 		if weights[k] != want {
 			t.Fatalf("%s %v != %v", k, weights[k], want)
 		}
 	}
-	for _, want := range []string{"min(healing, 8000)", "max(deaths, 1)", "min(buffs_duration, 600)", "min(save + purge + shield_uptime, 500)"} {
+	for _, want := range []string{"min(healing, 8000)", "max(deaths, 1)", "min(buff_duration, 600)", "min(save_duration + purge_duration + shield_duration, 500)"} {
 		if !strings.Contains(tail, want) {
 			t.Fatalf("%s missing in %s", want, tail)
 		}
@@ -355,7 +341,8 @@ func sampleVars(t *testing.T) map[string]float64 {
 		"healing": 9000, "hero_damage": 20000, "damage_taken": 15000, "tower_damage": 3200,
 		"stun_duration": 45, "camps_stacked": 9, "rune_pickups": 5, "first_blood": 1,
 		"gold_spent_wards": 500, "gold_spent_smoke": 100, "gold_spent_dust": 50,
-		"buffs_duration": 700, "save": 300, "purge": 120, "shield_uptime": 40,
+		"buff_duration": 700, "save_duration": 300, "purge_duration": 120, "shield_duration": 40,
+		"position": 1,
 	}
 }
 
@@ -484,5 +471,241 @@ func TestValidateRejectsDisallowedOperators(t *testing.T) {
 		if err := Validate(expr, statTokens); err == nil {
 			t.Errorf("%q validated unexpectedly", expr)
 		}
+	}
+}
+
+func TestStripComments(t *testing.T) {
+	got := stripComments("kills * 2 # бонус\n+ assists # вторая строка\n# весь файл комментарий\n")
+	want := "kills * 2 \n+ assists \n\n"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestValidateWithComments(t *testing.T) {
+	if err := Validate("# комментарий\nkills * 2 # в конце строки\n+ assists", statTokens); err != nil {
+		t.Fatalf("commented formula rejected: %v", err)
+	}
+	if err := Validate("# только комментарий", statTokens); err == nil {
+		t.Fatal("comment-only expression validated, want error")
+	}
+}
+
+func TestEvalWithComments(t *testing.T) {
+	vars := map[string]float64{"kills": 10, "assists": 5}
+	if got := EvalOn(t, "kills * 2 # x\n+ assists", vars); !approx(got, 25, 1e-9) {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestExpressionToWeightsWithComments(t *testing.T) {
+	weights, ok := ExpressionToWeights("# линейная\nkills * 0.3 + assists * 0.15 # коммент")
+	if !ok {
+		t.Fatal("comments broke linear extraction")
+	}
+	if weights["kills"] != 0.3 || weights["assists"] != 0.15 {
+		t.Fatalf("weights %+v", weights)
+	}
+}
+
+func TestTutorialFormulaValid(t *testing.T) {
+	if err := Validate(TutorialFormula, statTokens); err != nil {
+		t.Fatalf("tutorial formula invalid: %v", err)
+	}
+	if _, ok := ExpressionToWeights(TutorialFormula); ok {
+		t.Fatal("tutorial is nonlinear, must not convert to weights")
+	}
+}
+
+func TestMultilineSemicolonSums(t *testing.T) {
+	expr := "kills * 2;\nmax(deaths, 1) + assists * 3"
+	a := EvalOn(t, expr, map[string]float64{"kills": 5, "deaths": 4, "assists": 2})
+	want := 5*2 + 4 + 2*3
+	if !approx(a, float64(want), 1e-9) {
+		t.Fatalf("got %v want %v", a, want)
+	}
+}
+
+func TestMigrateExpressionRenamesTokens(t *testing.T) {
+	got := MigrateExpression("buffs_duration * 1 + save * 2 + purge * 3 + shield_uptime * 4")
+	for _, tok := range []string{"buff_duration", "save_duration", "purge_duration", "shield_duration"} {
+		if !strings.Contains(got, tok) {
+			t.Fatalf("%s missing in %s", tok, got)
+		}
+	}
+	if strings.Contains(got, "shield_uptime") || strings.Contains(got, "buffs_duration") {
+		t.Fatalf("old tokens remain: %s", got)
+	}
+}
+
+func TestMigrateExpressionNeutralizesRemoved(t *testing.T) {
+	for _, old := range []string{"deaths_base", "gold_lost"} {
+		expr := "kills * 2 + " + old + " * 5"
+		got := MigrateExpression(expr)
+		if err := Validate(got, statTokens); err != nil {
+			t.Fatalf("%s not neutralized: %s (%v)", old, got, err)
+		}
+		if strings.Contains(got, old) {
+			t.Fatalf("%s remains: %s", old, got)
+		}
+	}
+}
+
+func TestBreakdownSumsToTotal(t *testing.T) {
+	expr := "kills * 2;\n assists * 3"
+	vars := map[string]float64{"kills": 5, "assists": 2}
+	rows, err := Breakdown(expr, vars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("rows %d", len(rows))
+	}
+	var sum float64
+	for _, r := range rows {
+		sum += r.Value
+	}
+	total, _ := Eval(expr, vars)
+	if !approx(sum, total, 1e-9) {
+		t.Fatalf("sum %v != total %v", sum, total)
+	}
+}
+
+func TestBreakdownFlatSumTerms(t *testing.T) {
+	expr := "kills * 2\n+ assists * 3\n+ last_hits * 0.5"
+	vars := map[string]float64{"kills": 5, "assists": 2, "last_hits": 100}
+	rows, err := Breakdown(expr, vars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("rows %d: %+v", len(rows), rows)
+	}
+	var sum float64
+	for _, r := range rows {
+		sum += r.Value
+	}
+	if !approx(sum, EvalOn(t, expr, vars), 1e-9) {
+		t.Fatalf("sum %v != total", sum)
+	}
+	if rows[0].Label != "kills * 2" || rows[1].Label != "assists * 3" {
+		t.Fatalf("term labels %q", []string{rows[0].Label, rows[1].Label, rows[2].Label})
+	}
+}
+
+func TestBreakdownSignedTerms(t *testing.T) {
+	expr := "kills * 2 - deaths * 3 + assists"
+	vars := map[string]float64{"kills": 5, "deaths": 2, "assists": 4}
+	rows, err := Breakdown(expr, vars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("rows %d: %+v", len(rows), rows)
+	}
+	if rows[0].Label != "kills * 2" || rows[1].Label != "- deaths * 3" || !approx(rows[1].Value, -6, 1e-9) {
+		t.Fatalf("signed term %q = %v", rows[1].Label, rows[1].Value)
+	}
+	var sum float64
+	for _, r := range rows {
+		sum += r.Value
+	}
+	if !approx(sum, EvalOn(t, expr, vars), 1e-9) {
+		t.Fatalf("sum %v != total", sum)
+	}
+}
+
+func TestBreakdownKeepsWholeNestedExpression(t *testing.T) {
+	expr := "(kills * 3 + assists * 1.5) / max(deaths, 1)"
+	vars := map[string]float64{"kills": 10, "assists": 5, "deaths": 4}
+	rows, err := Breakdown(expr, vars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows %d: %+v", len(rows), rows)
+	}
+	if !approx(rows[0].Value, EvalOn(t, expr, vars), 1e-9) {
+		t.Fatalf("row %v != total", rows[0].Value)
+	}
+}
+
+func TestSplitTermsUnaryMinusGuard(t *testing.T) {
+	if got := splitTerms("a + b ** -2"); len(got) != 2 || got[0] != "a" || got[1] != "b ** -2" {
+		t.Fatalf("terms %q", got)
+	}
+	if got := splitTerms("-a + b"); len(got) != 2 || got[0] != "-a" || got[1] != "b" {
+		t.Fatalf("terms %q", got)
+	}
+	if got := splitTerms("if position == 1 { kills - assists } else { assists }"); len(got) != 1 {
+		t.Fatalf("if-block must stay one term, got %q", got)
+	}
+}
+
+func TestBreakdownTutorialFormula(t *testing.T) {
+	vars := sampleVars(t)
+	total := EvalOn(t, TutorialFormula, vars)
+	rows, err := Breakdown(TutorialFormula, vars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) < 10 {
+		t.Fatalf("tutorial must decompose into summands, got %d rows", len(rows))
+	}
+	var sum float64
+	for _, r := range rows {
+		sum += r.Value
+	}
+	if !approx(sum, total, 1e-6) {
+		t.Fatalf("sum %v != total %v", sum, total)
+	}
+}
+
+func TestStoreNameTaken(t *testing.T) {
+	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
+	s.Add(Preset{ID: "a", Name: "My Preset", Kind: "linear"})
+	if !s.NameTaken("my preset", "") {
+		t.Fatal("case-insensitive duplicate not detected")
+	}
+	if s.NameTaken("my preset", "a") {
+		t.Fatal("self-id should not count as duplicate")
+	}
+	if s.NameTaken("Other", "") {
+		t.Fatal("distinct name flagged")
+	}
+}
+
+func TestStoreLoadMigratesLegacyKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "f.json")
+	legacy := `{"active":"p","presets":[
+		{"id":"p","name":"P","kind":"linear",
+		 "weights":{"kills":0.3,"stun":0.05,"camps":0.5,"runes":0.2,"deaths_base":3.0,"gold_lost":0.1}},
+		{"id":"c","name":"C","kind":"expression","expression":"buffs_duration * 1 + deaths_base * 2"},
+		{"id":"standard","name":"Standard","kind":"linear","weights":{"kills":9}}
+	]}`
+	if err := os.WriteFile(path, []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := NewStore(path)
+	p, ok := s.Get("p")
+	if !ok {
+		t.Fatal("preset p missing")
+	}
+	for k, want := range map[string]float64{"kills": 0.3, "stun_duration": 0.05, "camps_stacked": 0.5, "rune_pickups": 0.2} {
+		if p.Weights[k] != want {
+			t.Fatalf("%s %v != %v", k, p.Weights[k], want)
+		}
+	}
+	for _, bad := range []string{"deaths_base", "gold_lost", "stun", "camps", "runes"} {
+		if _, ok := p.Weights[bad]; ok {
+			t.Fatalf("legacy key %s survived", bad)
+		}
+	}
+	c, ok := s.Get("c")
+	if !ok || c.Expression != "buff_duration * 1 + 0 * 2" {
+		t.Fatalf("expression not migrated: %+v", c)
+	}
+	if _, ok := s.Get("standard"); ok {
+		t.Fatal("legacy standard preset should be dropped")
 	}
 }

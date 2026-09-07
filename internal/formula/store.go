@@ -20,18 +20,14 @@ type Preset struct {
 	Expression string             `json:"expression"`
 }
 
-// StandardPreset returns the built-in linear preset.
-func StandardPreset() Preset {
-	w := make(map[string]float64, len(DefaultLinearWeights))
-	for k, v := range DefaultLinearWeights {
-		w[k] = v
-	}
-	return Preset{ID: "standard", Name: "Стандартная", Kind: "linear", Weights: w}
-}
-
 // StandardV2Preset returns the default expression preset.
 func StandardV2Preset() Preset {
 	return Preset{ID: "standard_v2", Name: "Стандартная v2", Kind: "expression", Expression: StandardV2Formula}
+}
+
+// TutorialPreset returns the built-in teaching formula.
+func TutorialPreset() Preset {
+	return Preset{ID: "tutorial", Name: "Учебная", Kind: "expression", Expression: TutorialFormula}
 }
 
 func newID() string {
@@ -47,14 +43,14 @@ type Store struct {
 	activeID string
 }
 
-// NewStore opens a store, seeding the two built-ins and loading any saved file.
+// NewStore opens a store, seeding the built-ins and loading any saved file.
 func NewStore(path string) *Store {
 	s := &Store{
 		path:    path,
 		presets: map[string]Preset{},
 	}
-	s.add(StandardPreset())
 	s.add(StandardV2Preset())
+	s.add(TutorialPreset())
 	s.activeID = "standard_v2"
 	s.load()
 	return s
@@ -76,7 +72,10 @@ func (s *Store) load() {
 		return
 	}
 	for _, p := range file.Presets {
-		s.add(p.preset())
+		if p.ID == "standard" {
+			continue
+		}
+		s.add(migratePreset(p.preset()))
 	}
 	if _, ok := s.presets[file.Active]; ok {
 		s.activeID = file.Active
@@ -137,9 +136,9 @@ func (s *Store) Save() bool {
 
 // Presets returns all presets in insertion order.
 func (s *Store) Presets() []Preset {
-	ordered := []string{"standard", "standard_v2"}
+	ordered := []string{"tutorial", "standard_v2"}
 	for id := range s.presets {
-		if id != "standard" && id != "standard_v2" {
+		if id != "tutorial" && id != "standard_v2" {
 			ordered = append(ordered, id)
 		}
 	}
@@ -162,11 +161,25 @@ func (s *Store) Active() Preset {
 	if p, ok := s.presets[s.activeID]; ok {
 		return p
 	}
-	return StandardPreset()
+	return StandardV2Preset()
 }
 
 // isBuiltin reports whether id is a read-only built-in preset.
-func isBuiltin(id string) bool { return id == "standard" || id == "standard_v2" }
+func isBuiltin(id string) bool { return id == "standard_v2" || id == "tutorial" }
+
+// NameTaken reports whether another preset already uses this name
+// (case-insensitive, ignoring the preset itself).
+func (s *Store) NameTaken(name, selfID string) bool {
+	for id, p := range s.presets {
+		if id == selfID {
+			continue
+		}
+		if strings.EqualFold(p.Name, name) {
+			return true
+		}
+	}
+	return false
+}
 
 // Add inserts a preset. Built-ins are never overwritten.
 func (s *Store) Add(p Preset) {
@@ -209,9 +222,36 @@ func (s *Store) ValidatePreset(p Preset, extra map[string]bool) error {
 	return nil
 }
 
+// legacyWeightKey maps old linear weight keys onto the current token names.
+var legacyWeightKey = map[string]string{
+	"stun": "stun_duration", "camps": "camps_stacked", "runes": "rune_pickups",
+	"buffs_duration": "buff_duration", "save": "save_duration",
+	"purge": "purge_duration", "shield_uptime": "shield_duration",
+}
+
+// migratePreset updates a loaded preset to the current token registry: legacy
+// linear weight keys are renamed, removed keys (deaths_base, gold_lost) are
+// dropped, and stored expressions are rewritten to current token names.
+func migratePreset(p Preset) Preset {
+	migrated := map[string]float64{}
+	for k, v := range p.Weights {
+		if k == "deaths_base" || k == "gold_lost" {
+			continue
+		}
+		if nk, ok := legacyWeightKey[k]; ok {
+			migrated[nk] = v
+			continue
+		}
+		migrated[k] = v
+	}
+	p.Weights = migrated
+	p.Expression = MigrateExpression(p.Expression)
+	return p
+}
+
 // Remove deletes a preset; built-ins and unknown ids are refused.
 func (s *Store) Remove(id string) bool {
-	if id == "standard" {
+	if isBuiltin(id) {
 		return false
 	}
 	if _, ok := s.presets[id]; !ok {
@@ -219,7 +259,7 @@ func (s *Store) Remove(id string) bool {
 	}
 	delete(s.presets, id)
 	if s.activeID == id {
-		s.activeID = "standard"
+		s.activeID = "standard_v2"
 	}
 	return true
 }
@@ -248,7 +288,7 @@ func (s *Store) ImportFile(path string) (Preset, error) {
 	if p.Kind == "expression" && strings.TrimSpace(p.Expression) == "" {
 		return Preset{}, errf("Файл не содержит выражения формулы")
 	}
-	if _, existing := s.presets[p.ID]; existing || p.ID == "standard" {
+	if _, existing := s.presets[p.ID]; existing || isBuiltin(p.ID) {
 		p.ID = newID()
 	}
 	s.add(p)

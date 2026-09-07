@@ -30,10 +30,13 @@ type Player struct {
 	CreepsStacked  int
 	RunePickups    int
 	FirstBlood     bool
-	BuffsDuration  float64
-	Save           float64
-	Purge          float64
-	ShieldUptime   float64
+	BuffsDuration      float64
+	Save               float64
+	Purge              float64
+	ShieldUptime       float64
+	BuffStatsDuration  float64
+	InvisibilityDuration float64
+	BuffHasteDuration  float64
 
 	FearDuration     float64
 	RootsDuration    float64
@@ -45,7 +48,6 @@ type Player struct {
 	DisarmDuration   float64
 	HealDuration     float64
 	HealValue        float64
-	GoldLost         float64
 	WisdomsCaptured  int
 	WatchersCaptured int
 	LotusesGathered  int

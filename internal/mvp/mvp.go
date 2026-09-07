@@ -10,7 +10,6 @@ import (
 type Weights struct {
 	Kills          float64
 	Deaths         float64
-	DeathsBase     float64
 	Assists        float64
 	LastHits       float64
 	GPM            float64
@@ -30,6 +29,9 @@ type Weights struct {
 	Save           float64
 	Purge          float64
 	ShieldUptime   float64
+	BuffStatsDuration float64
+	InvisibilityDuration float64
+	BuffHasteDuration float64
 
 	FearDuration     float64
 	RootsDuration    float64
@@ -41,7 +43,7 @@ type Weights struct {
 	DisarmDuration   float64
 	HealDuration     float64
 	HealValue        float64
-	GoldLost         float64
+	CreepsStacked    float64
 	TimeDead         float64
 	WisdomsCaptured  float64
 	WatchersCaptured float64
@@ -50,7 +52,7 @@ type Weights struct {
 }
 
 var DefaultWeights = Weights{
-	Kills: 0.3, Deaths: 0.3, DeathsBase: 3.0, Assists: 0.15,
+	Kills: 0.3, Deaths: 0.3, Assists: 0.15,
 	LastHits: 0.003, GPM: 0.002, XPM: 0.002, Stun: 0.05,
 	Healing: 0.004, TowerDamage: 0.001, Camps: 0.5, Runes: 0.2,
 	FirstBlood: 1.0,
@@ -59,31 +61,33 @@ var DefaultWeights = Weights{
 var weightKeys = map[string]weightField{
 	"kills":        {"Kills", "kills", func(p *model.Player) float64 { return float64(p.Kills) }},
 	"deaths":       {"Deaths", "deaths", func(p *model.Player) float64 { return float64(p.Deaths) }},
-	"deaths_base":  {"DeathsBase", "", nil},
 	"assists":      {"Assists", "assists", func(p *model.Player) float64 { return float64(p.Assists) }},
 	"last_hits":    {"LastHits", "last_hits", func(p *model.Player) float64 { return float64(p.LastHits) }},
 	"gpm":          {"GPM", "gpm", func(p *model.Player) float64 { return float64(p.GPM) }},
 	"xpm":          {"XPM", "xpm", func(p *model.Player) float64 { return float64(p.XPM) }},
-	"stun":         {"Stun", "stun_duration", func(p *model.Player) float64 { return p.StunDuration }},
+	"stun_duration": {"Stun", "stun_duration", func(p *model.Player) float64 { return p.StunDuration }},
 	"healing":      {"Healing", "healing", func(p *model.Player) float64 { return p.Healing }},
 	"tower_damage": {"TowerDamage", "tower_damage", func(p *model.Player) float64 { return float64(p.TowerDamage) }},
-	"camps":        {"Camps", "camps_stacked", func(p *model.Player) float64 { return float64(p.CampsStacked) }},
-	"runes":        {"Runes", "rune_pickups", func(p *model.Player) float64 { return float64(p.RunePickups) }},
+	"camps_stacked": {"Camps", "camps_stacked", func(p *model.Player) float64 { return float64(p.CampsStacked) }},
+	"rune_pickups": {"Runes", "rune_pickups", func(p *model.Player) float64 { return float64(p.RunePickups) }},
 	"first_blood": {"FirstBlood", "first_blood", func(p *model.Player) float64 {
 		if p.FirstBlood {
 			return 1
 		}
 		return 0
 	}},
-	"hero_damage":       {"HeroDamage", "hero_damage", func(p *model.Player) float64 { return float64(p.HeroDamage) }},
-	"damage_taken":      {"DamageTaken", "damage_taken", func(p *model.Player) float64 { return float64(p.DamageTaken) }},
-	"gold_spent_wards":  {"GoldSpentWards", "gold_spent_wards", func(p *model.Player) float64 { return float64(p.GoldSpentWards) }},
-	"gold_spent_smoke":  {"GoldSpentSmoke", "gold_spent_smoke", func(p *model.Player) float64 { return float64(p.GoldSpentSmoke) }},
-	"gold_spent_dust":   {"GoldSpentDust", "gold_spent_dust", func(p *model.Player) float64 { return float64(p.GoldSpentDust) }},
-	"buffs_duration":    {"BuffsDuration", "buffs_duration", func(p *model.Player) float64 { return p.BuffsDuration }},
-	"save":              {"Save", "save", func(p *model.Player) float64 { return p.Save }},
-	"purge":             {"Purge", "purge", func(p *model.Player) float64 { return p.Purge }},
-	"shield_uptime":     {"ShieldUptime", "shield_uptime", func(p *model.Player) float64 { return p.ShieldUptime }},
+	"hero_damage":      {"HeroDamage", "hero_damage", func(p *model.Player) float64 { return float64(p.HeroDamage) }},
+	"damage_taken":     {"DamageTaken", "damage_taken", func(p *model.Player) float64 { return float64(p.DamageTaken) }},
+	"gold_spent_wards": {"GoldSpentWards", "gold_spent_wards", func(p *model.Player) float64 { return float64(p.GoldSpentWards) }},
+	"gold_spent_smoke": {"GoldSpentSmoke", "gold_spent_smoke", func(p *model.Player) float64 { return float64(p.GoldSpentSmoke) }},
+	"gold_spent_dust":  {"GoldSpentDust", "gold_spent_dust", func(p *model.Player) float64 { return float64(p.GoldSpentDust) }},
+	"buff_duration":    {"BuffsDuration", "buff_duration", func(p *model.Player) float64 { return p.BuffsDuration }},
+	"save_duration":    {"Save", "save_duration", func(p *model.Player) float64 { return p.Save }},
+	"purge_duration":   {"Purge", "purge_duration", func(p *model.Player) float64 { return p.Purge }},
+	"shield_duration":  {"ShieldUptime", "shield_duration", func(p *model.Player) float64 { return p.ShieldUptime }},
+	"buff_stats_duration": {"BuffStatsDuration", "buff_stats_duration", func(p *model.Player) float64 { return p.BuffStatsDuration }},
+	"invisibility_duration": {"InvisibilityDuration", "invisibility_duration", func(p *model.Player) float64 { return p.InvisibilityDuration }},
+	"buff_haste_duration": {"BuffHasteDuration", "buff_haste_duration", func(p *model.Player) float64 { return p.BuffHasteDuration }},
 	"fear_duration":     {"FearDuration", "fear_duration", func(p *model.Player) float64 { return p.FearDuration }},
 	"roots_duration":    {"RootsDuration", "roots_duration", func(p *model.Player) float64 { return p.RootsDuration }},
 	"leash_duration":    {"LeashDuration", "leash_duration", func(p *model.Player) float64 { return p.LeashDuration }},
@@ -94,8 +98,8 @@ var weightKeys = map[string]weightField{
 	"disarm_duration":   {"DisarmDuration", "disarm_duration", func(p *model.Player) float64 { return p.DisarmDuration }},
 	"heal_duration":     {"HealDuration", "heal_duration", func(p *model.Player) float64 { return p.HealDuration }},
 	"heal_value":        {"HealValue", "heal_value", func(p *model.Player) float64 { return p.HealValue }},
-	"gold_lost":         {"GoldLost", "gold_lost", func(p *model.Player) float64 { return p.GoldLost }},
 	"time_dead":         {"TimeDead", "time_dead", func(p *model.Player) float64 { return p.TimeDead }},
+	"creeps_stacked":    {"CreepsStacked", "creeps_stacked", func(p *model.Player) float64 { return float64(p.CreepsStacked) }},
 	"wisdoms_captured":  {"WisdomsCaptured", "wisdoms_captured", func(p *model.Player) float64 { return float64(p.WisdomsCaptured) }},
 	"watchers_captured": {"WatchersCaptured", "watchers_captured", func(p *model.Player) float64 { return float64(p.WatchersCaptured) }},
 	"lotuses_gathered":  {"LotusesGathered", "lotuses_gathered", func(p *model.Player) float64 { return float64(p.LotusesGathered) }},
@@ -115,8 +119,6 @@ func (w *Weights) value(key string) float64 {
 		return w.Kills
 	case "Deaths":
 		return w.Deaths
-	case "DeathsBase":
-		return w.DeathsBase
 	case "Assists":
 		return w.Assists
 	case "LastHits":
@@ -155,6 +157,12 @@ func (w *Weights) value(key string) float64 {
 		return w.Purge
 	case "ShieldUptime":
 		return w.ShieldUptime
+	case "BuffStatsDuration":
+		return w.BuffStatsDuration
+	case "InvisibilityDuration":
+		return w.InvisibilityDuration
+	case "BuffHasteDuration":
+		return w.BuffHasteDuration
 	case "FearDuration":
 		return w.FearDuration
 	case "RootsDuration":
@@ -175,8 +183,8 @@ func (w *Weights) value(key string) float64 {
 		return w.HealDuration
 	case "HealValue":
 		return w.HealValue
-	case "GoldLost":
-		return w.GoldLost
+	case "CreepsStacked":
+		return w.CreepsStacked
 	case "TimeDead":
 		return w.TimeDead
 	case "WisdomsCaptured":
@@ -211,8 +219,6 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 			w.Kills = v
 		case "Deaths":
 			w.Deaths = v
-		case "DeathsBase":
-			w.DeathsBase = v
 		case "Assists":
 			w.Assists = v
 		case "LastHits":
@@ -251,6 +257,12 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 			w.Purge = v
 		case "ShieldUptime":
 			w.ShieldUptime = v
+		case "BuffStatsDuration":
+			w.BuffStatsDuration = v
+		case "InvisibilityDuration":
+			w.InvisibilityDuration = v
+		case "BuffHasteDuration":
+			w.BuffHasteDuration = v
 		case "FearDuration":
 			w.FearDuration = v
 		case "RootsDuration":
@@ -271,8 +283,8 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 			w.HealDuration = v
 		case "HealValue":
 			w.HealValue = v
-		case "GoldLost":
-			w.GoldLost = v
+		case "CreepsStacked":
+			w.CreepsStacked = v
 		case "TimeDead":
 			w.TimeDead = v
 		case "WisdomsCaptured":
@@ -301,13 +313,15 @@ func PlayerVars(p model.Player, duration float64) map[string]float64 {
 		"rune_pickups": float64(p.RunePickups),
 		"first_blood":  fb, "hero_damage": float64(p.HeroDamage), "damage_taken": float64(p.DamageTaken),
 		"gold_spent_wards": float64(p.GoldSpentWards), "gold_spent_smoke": float64(p.GoldSpentSmoke),
-		"gold_spent_dust": float64(p.GoldSpentDust), "buffs_duration": p.BuffsDuration,
-		"save": p.Save, "purge": p.Purge, "shield_uptime": p.ShieldUptime,
+		"gold_spent_dust": float64(p.GoldSpentDust), "buff_duration": p.BuffsDuration,
+		"save_duration": p.Save, "purge_duration": p.Purge, "shield_duration": p.ShieldUptime,
+		"buff_stats_duration": p.BuffStatsDuration, "invisibility_duration": p.InvisibilityDuration,
+		"buff_haste_duration": p.BuffHasteDuration,
 		"fear_duration": p.FearDuration, "roots_duration": p.RootsDuration,
 		"leash_duration": p.LeashDuration, "trap_duration": p.TrapDuration,
 		"taunt_duration": p.TauntDuration, "silence_duration": p.SilenceDuration,
 		"break_duration": p.BreakDuration, "disarm_duration": p.DisarmDuration,
-		"heal_duration": p.HealDuration, "heal_value": p.HealValue, "gold_lost": p.GoldLost,
+		"heal_duration": p.HealDuration, "heal_value": p.HealValue,
 		"time_dead":        p.TimeDead,
 		"wisdoms_captured": float64(p.WisdomsCaptured), "watchers_captured": float64(p.WatchersCaptured),
 		"lotuses_gathered": float64(p.LotusesGathered), "courier_kills": float64(p.CourierKills),
@@ -327,7 +341,7 @@ func ScoreBreakdown(p model.Player, w Weights) map[string]float64 {
 		}
 		out[f.token] = f.getter(&p) * w.value(key)
 	}
-	out["deaths"] = w.DeathsBase - float64(p.Deaths)*w.Deaths
+	out["deaths"] = -float64(p.Deaths) * w.Deaths
 	return out
 }
 
