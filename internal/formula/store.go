@@ -226,7 +226,7 @@ func (s *Store) ValidatePreset(p Preset, extra map[string]bool) error {
 var legacyWeightKey = map[string]string{
 	"stun": "stun_duration", "camps": "camps_stacked", "runes": "rune_pickups",
 	"buffs_duration": "buff_duration", "save": "save_duration",
-	"purge": "purge_duration", "shield_uptime": "shield_duration",
+	"purge": "purge_count", "purge_duration": "purge_count", "shield_uptime": "shield_duration",
 }
 
 // migratePreset updates a loaded preset to the current token registry: legacy
@@ -284,7 +284,7 @@ func (s *Store) ImportFile(path string) (Preset, error) {
 	if err := json.Unmarshal(data, &j); err != nil {
 		return Preset{}, errf("Не удалось прочитать файл: %v", err)
 	}
-	p := j.preset()
+	p := migratePreset(j.preset())
 	if p.Kind == "expression" && strings.TrimSpace(p.Expression) == "" {
 		return Preset{}, errf("Файл не содержит выражения формулы")
 	}

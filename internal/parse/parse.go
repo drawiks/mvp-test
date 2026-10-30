@@ -103,42 +103,42 @@ func FromMatch(m *parser.Match) model.Result {
 // from buff_sources categories.
 func FromPlayer(p parser.Player) model.Player {
 	return model.Player{
-		SteamID:        p.SteamID,
-		PlayerID:       p.PlayerID,
-		HeroID:         p.HeroID,
-		Hero:           canonicalHero(p.HeroID, p.Hero),
-		Team:           p.Team,
-		Name:           p.Name,
-		Position:       p.Position,
-		Lane:           p.Lane,
-		Kills:          p.Kills,
-		Deaths:         p.Deaths,
-		Assists:        p.Assists,
-		Level:          p.Level,
-		LastHits:       p.LastHits,
-		Networth:       p.Networth,
-		GPM:            p.GPM,
-		XPM:            p.XPM,
-		Healing:        float64(p.Healing),
-		HeroDamage:     p.HeroDamage,
-		DamageTaken:    p.DamageTaken,
-		TowerDamage:    p.TowerDamage,
-		TimeDead:       p.TimeDead,
-		StunDuration:   p.StunDuration,
-		GoldSpentWards: p.GoldSpentWards,
-		GoldSpentSmoke: p.GoldSpentSmoke,
-		GoldSpentDust:  p.GoldSpentDust,
-		CampsStacked:   p.CampsStacked,
-		CreepsStacked:  p.CreepsStacked,
-		RunePickups:    p.RunePickups,
-		FirstBlood:     p.FirstBlood,
-		BuffsDuration:  p.BuffDuration,
-		Save:           sumCategory(p.BuffSources, "save"),
-		Purge:          sumCategory(p.BuffSources, "purge"),
-		ShieldUptime:   sumCategory(p.BuffSources, "shield"),
-		BuffStatsDuration: sumCategory(p.BuffSources, "buff_stats"),
+		SteamID:              p.SteamID,
+		PlayerID:             p.PlayerID,
+		HeroID:               p.HeroID,
+		Hero:                 canonicalHero(p.HeroID, p.Hero),
+		Team:                 p.Team,
+		Name:                 p.Name,
+		Position:             p.Position,
+		Lane:                 p.Lane,
+		Kills:                p.Kills,
+		Deaths:               p.Deaths,
+		Assists:              p.Assists,
+		Level:                p.Level,
+		LastHits:             p.LastHits,
+		Networth:             p.Networth,
+		GPM:                  p.GPM,
+		XPM:                  p.XPM,
+		Healing:              float64(p.Healing),
+		HeroDamage:           p.HeroDamage,
+		DamageTaken:          p.DamageTaken,
+		TowerDamage:          p.TowerDamage,
+		TimeDead:             p.TimeDead,
+		StunDuration:         p.StunDuration,
+		GoldSpentWards:       p.GoldSpentWards,
+		GoldSpentSmoke:       p.GoldSpentSmoke,
+		GoldSpentDust:        p.GoldSpentDust,
+		CampsStacked:         p.CampsStacked,
+		CreepsStacked:        p.CreepsStacked,
+		RunePickups:          p.RunePickups,
+		FirstBlood:           p.FirstBlood,
+		BuffsDuration:        p.BuffDuration,
+		Save:                 sumCategory(p.BuffSources, "save"),
+		Purge:                sumCategory(p.BuffSources, "purge"),
+		ShieldUptime:         sumCategory(p.BuffSources, "shield"),
+		BuffStatsDuration:    sumCategory(p.BuffSources, "buff_stats"),
 		InvisibilityDuration: sumCategory(p.BuffSources, "invisibility"),
-		BuffHasteDuration: sumCategory(p.BuffSources, "buff_haste"),
+		BuffHasteDuration:    sumCategory(p.BuffSources, "buff_haste"),
 
 		FearDuration:     p.FearDuration,
 		RootsDuration:    p.RootsDuration,
@@ -157,17 +157,20 @@ func FromPlayer(p parser.Player) model.Player {
 	}
 }
 
-// sumCategory totals buff durations for one category. Entries that only carry
-// a legacy "value" (seconds) are counted through that field instead.
+// sumCategory totals buff stats for one category. Purges are reported as an
+// application count; older output carried a duration/value instead.
 func sumCategory(sources []parser.SourceEntry, category string) float64 {
 	var total float64
 	for _, s := range sources {
 		if s.Category != category {
 			continue
 		}
-		if s.Duration != 0 {
+		switch {
+		case s.Count != 0:
+			total += float64(s.Count)
+		case s.Duration != 0:
 			total += s.Duration
-		} else {
+		default:
 			total += s.Value
 		}
 	}
@@ -211,11 +214,16 @@ func bySuffix(lower string) string {
 }
 
 func parseNDJSONFile(path string) (model.Result, error) {
-	events, err := parser.ReadNDJSONFile(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return model.Result{}, fmt.Errorf("%w: %v", ErrReplay, err)
+	}
+	defer f.Close()
+	match, err := parser.AggregateStream(f)
 	if err != nil {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
 	}
-	return aggregate(events)
+	return FromMatch(match), nil
 }
 
 func parseJSONFile(path string) (model.Result, error) {
@@ -227,30 +235,7 @@ func parseJSONFile(path string) (model.Result, error) {
 	if hasPlayersField(data) {
 		return ReadAggregatedJSON(data)
 	}
-	events, err := readNDJSON(data)
-	if err != nil {
-		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
-	}
-	return aggregate(events)
-}
-
-func readNDJSON(data []byte) ([]parser.RawEvent, error) {
-	tmp, err := os.CreateTemp("", "mvp-events-*.ndjson")
-	if err != nil {
-		return nil, err
-	}
-	path := tmp.Name()
-	defer os.Remove(path)
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return nil, err
-	}
-	tmp.Close()
-	return parser.ReadNDJSONFile(path)
-}
-
-func aggregate(events []parser.RawEvent) (model.Result, error) {
-	match, err := parser.Aggregate(events)
+	match, err := parser.AggregateStream(bytes.NewReader(data))
 	if err != nil {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
 	}
@@ -258,15 +243,16 @@ func aggregate(events []parser.RawEvent) (model.Result, error) {
 }
 
 func parseFromHTTP(ctx context.Context, path, parserURL string) (model.Result, error) {
-	demData, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrReplay, err)
 	}
-	events, err := parser.FetchFromParserContext(ctx, demData, parserURL)
+	defer f.Close()
+	match, err := parser.ParseDemContext(ctx, f, parserURL)
 	if err != nil {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrHTTP, err)
 	}
-	return aggregate(events)
+	return FromMatch(match), nil
 }
 
 // compressedHeader reports whether the file begins with a bzip2 or zstd magic.

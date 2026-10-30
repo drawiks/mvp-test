@@ -38,7 +38,7 @@ const STAT_COLS: Col[] = [
   { kind: "stat", header: "Dust G", stat: "gold_spent_dust", align: "center" },
   { kind: "stat", header: "Buffs", stat: "buff_duration", align: "center", render: (_v, s) => `${Math.round(s)}` },
   { kind: "stat", header: "Save", stat: "save_duration", align: "center", render: (_v, s) => `${Math.round(s)}` },
-  { kind: "stat", header: "Purge", stat: "purge_duration", align: "center", render: (_v, s) => `${Math.round(s)}` },
+  { kind: "stat", header: "Purge", stat: "purge_count", align: "center", render: (_v, s) => `${Math.round(s)}` },
   { kind: "stat", header: "Shield", stat: "shield_duration", align: "center", render: (_v, s) => `${Math.round(s)}` },
   { kind: "stat", header: "Fear", stat: "fear_duration", align: "center", render: (_v, s) => s.toFixed(1) },
   { kind: "stat", header: "Silence", stat: "silence_duration", align: "center", render: (_v, s) => s.toFixed(1) },

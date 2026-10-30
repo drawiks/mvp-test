@@ -8,30 +8,30 @@ import (
 )
 
 type Weights struct {
-	Kills          float64
-	Deaths         float64
-	Assists        float64
-	LastHits       float64
-	GPM            float64
-	XPM            float64
-	Stun           float64
-	Healing        float64
-	TowerDamage    float64
-	Camps          float64
-	Runes          float64
-	FirstBlood     float64
-	HeroDamage     float64
-	DamageTaken    float64
-	GoldSpentWards float64
-	GoldSpentSmoke float64
-	GoldSpentDust  float64
-	BuffsDuration  float64
-	Save           float64
-	Purge          float64
-	ShieldUptime   float64
-	BuffStatsDuration float64
+	Kills                float64
+	Deaths               float64
+	Assists              float64
+	LastHits             float64
+	GPM                  float64
+	XPM                  float64
+	Stun                 float64
+	Healing              float64
+	TowerDamage          float64
+	Camps                float64
+	Runes                float64
+	FirstBlood           float64
+	HeroDamage           float64
+	DamageTaken          float64
+	GoldSpentWards       float64
+	GoldSpentSmoke       float64
+	GoldSpentDust        float64
+	BuffsDuration        float64
+	Save                 float64
+	Purge                float64
+	ShieldUptime         float64
+	BuffStatsDuration    float64
 	InvisibilityDuration float64
-	BuffHasteDuration float64
+	BuffHasteDuration    float64
 
 	FearDuration     float64
 	RootsDuration    float64
@@ -59,51 +59,51 @@ var DefaultWeights = Weights{
 }
 
 var weightKeys = map[string]weightField{
-	"kills":        {"Kills", "kills", func(p *model.Player) float64 { return float64(p.Kills) }},
-	"deaths":       {"Deaths", "deaths", func(p *model.Player) float64 { return float64(p.Deaths) }},
-	"assists":      {"Assists", "assists", func(p *model.Player) float64 { return float64(p.Assists) }},
-	"last_hits":    {"LastHits", "last_hits", func(p *model.Player) float64 { return float64(p.LastHits) }},
-	"gpm":          {"GPM", "gpm", func(p *model.Player) float64 { return float64(p.GPM) }},
-	"xpm":          {"XPM", "xpm", func(p *model.Player) float64 { return float64(p.XPM) }},
+	"kills":         {"Kills", "kills", func(p *model.Player) float64 { return float64(p.Kills) }},
+	"deaths":        {"Deaths", "deaths", func(p *model.Player) float64 { return float64(p.Deaths) }},
+	"assists":       {"Assists", "assists", func(p *model.Player) float64 { return float64(p.Assists) }},
+	"last_hits":     {"LastHits", "last_hits", func(p *model.Player) float64 { return float64(p.LastHits) }},
+	"gpm":           {"GPM", "gpm", func(p *model.Player) float64 { return float64(p.GPM) }},
+	"xpm":           {"XPM", "xpm", func(p *model.Player) float64 { return float64(p.XPM) }},
 	"stun_duration": {"Stun", "stun_duration", func(p *model.Player) float64 { return p.StunDuration }},
-	"healing":      {"Healing", "healing", func(p *model.Player) float64 { return p.Healing }},
-	"tower_damage": {"TowerDamage", "tower_damage", func(p *model.Player) float64 { return float64(p.TowerDamage) }},
+	"healing":       {"Healing", "healing", func(p *model.Player) float64 { return p.Healing }},
+	"tower_damage":  {"TowerDamage", "tower_damage", func(p *model.Player) float64 { return float64(p.TowerDamage) }},
 	"camps_stacked": {"Camps", "camps_stacked", func(p *model.Player) float64 { return float64(p.CampsStacked) }},
-	"rune_pickups": {"Runes", "rune_pickups", func(p *model.Player) float64 { return float64(p.RunePickups) }},
+	"rune_pickups":  {"Runes", "rune_pickups", func(p *model.Player) float64 { return float64(p.RunePickups) }},
 	"first_blood": {"FirstBlood", "first_blood", func(p *model.Player) float64 {
 		if p.FirstBlood {
 			return 1
 		}
 		return 0
 	}},
-	"hero_damage":      {"HeroDamage", "hero_damage", func(p *model.Player) float64 { return float64(p.HeroDamage) }},
-	"damage_taken":     {"DamageTaken", "damage_taken", func(p *model.Player) float64 { return float64(p.DamageTaken) }},
-	"gold_spent_wards": {"GoldSpentWards", "gold_spent_wards", func(p *model.Player) float64 { return float64(p.GoldSpentWards) }},
-	"gold_spent_smoke": {"GoldSpentSmoke", "gold_spent_smoke", func(p *model.Player) float64 { return float64(p.GoldSpentSmoke) }},
-	"gold_spent_dust":  {"GoldSpentDust", "gold_spent_dust", func(p *model.Player) float64 { return float64(p.GoldSpentDust) }},
-	"buff_duration":    {"BuffsDuration", "buff_duration", func(p *model.Player) float64 { return p.BuffsDuration }},
-	"save_duration":    {"Save", "save_duration", func(p *model.Player) float64 { return p.Save }},
-	"purge_duration":   {"Purge", "purge_duration", func(p *model.Player) float64 { return p.Purge }},
-	"shield_duration":  {"ShieldUptime", "shield_duration", func(p *model.Player) float64 { return p.ShieldUptime }},
-	"buff_stats_duration": {"BuffStatsDuration", "buff_stats_duration", func(p *model.Player) float64 { return p.BuffStatsDuration }},
+	"hero_damage":           {"HeroDamage", "hero_damage", func(p *model.Player) float64 { return float64(p.HeroDamage) }},
+	"damage_taken":          {"DamageTaken", "damage_taken", func(p *model.Player) float64 { return float64(p.DamageTaken) }},
+	"gold_spent_wards":      {"GoldSpentWards", "gold_spent_wards", func(p *model.Player) float64 { return float64(p.GoldSpentWards) }},
+	"gold_spent_smoke":      {"GoldSpentSmoke", "gold_spent_smoke", func(p *model.Player) float64 { return float64(p.GoldSpentSmoke) }},
+	"gold_spent_dust":       {"GoldSpentDust", "gold_spent_dust", func(p *model.Player) float64 { return float64(p.GoldSpentDust) }},
+	"buff_duration":         {"BuffsDuration", "buff_duration", func(p *model.Player) float64 { return p.BuffsDuration }},
+	"save_duration":         {"Save", "save_duration", func(p *model.Player) float64 { return p.Save }},
+	"purge_count":           {"Purge", "purge_count", func(p *model.Player) float64 { return p.Purge }},
+	"shield_duration":       {"ShieldUptime", "shield_duration", func(p *model.Player) float64 { return p.ShieldUptime }},
+	"buff_stats_duration":   {"BuffStatsDuration", "buff_stats_duration", func(p *model.Player) float64 { return p.BuffStatsDuration }},
 	"invisibility_duration": {"InvisibilityDuration", "invisibility_duration", func(p *model.Player) float64 { return p.InvisibilityDuration }},
-	"buff_haste_duration": {"BuffHasteDuration", "buff_haste_duration", func(p *model.Player) float64 { return p.BuffHasteDuration }},
-	"fear_duration":     {"FearDuration", "fear_duration", func(p *model.Player) float64 { return p.FearDuration }},
-	"roots_duration":    {"RootsDuration", "roots_duration", func(p *model.Player) float64 { return p.RootsDuration }},
-	"leash_duration":    {"LeashDuration", "leash_duration", func(p *model.Player) float64 { return p.LeashDuration }},
-	"trap_duration":     {"TrapDuration", "trap_duration", func(p *model.Player) float64 { return p.TrapDuration }},
-	"taunt_duration":    {"TauntDuration", "taunt_duration", func(p *model.Player) float64 { return p.TauntDuration }},
-	"silence_duration":  {"SilenceDuration", "silence_duration", func(p *model.Player) float64 { return p.SilenceDuration }},
-	"break_duration":    {"BreakDuration", "break_duration", func(p *model.Player) float64 { return p.BreakDuration }},
-	"disarm_duration":   {"DisarmDuration", "disarm_duration", func(p *model.Player) float64 { return p.DisarmDuration }},
-	"heal_duration":     {"HealDuration", "heal_duration", func(p *model.Player) float64 { return p.HealDuration }},
-	"heal_value":        {"HealValue", "heal_value", func(p *model.Player) float64 { return p.HealValue }},
-	"time_dead":         {"TimeDead", "time_dead", func(p *model.Player) float64 { return p.TimeDead }},
-	"creeps_stacked":    {"CreepsStacked", "creeps_stacked", func(p *model.Player) float64 { return float64(p.CreepsStacked) }},
-	"wisdoms_captured":  {"WisdomsCaptured", "wisdoms_captured", func(p *model.Player) float64 { return float64(p.WisdomsCaptured) }},
-	"watchers_captured": {"WatchersCaptured", "watchers_captured", func(p *model.Player) float64 { return float64(p.WatchersCaptured) }},
-	"lotuses_gathered":  {"LotusesGathered", "lotuses_gathered", func(p *model.Player) float64 { return float64(p.LotusesGathered) }},
-	"courier_kills":     {"CourierKills", "courier_kills", func(p *model.Player) float64 { return float64(p.CourierKills) }},
+	"buff_haste_duration":   {"BuffHasteDuration", "buff_haste_duration", func(p *model.Player) float64 { return p.BuffHasteDuration }},
+	"fear_duration":         {"FearDuration", "fear_duration", func(p *model.Player) float64 { return p.FearDuration }},
+	"roots_duration":        {"RootsDuration", "roots_duration", func(p *model.Player) float64 { return p.RootsDuration }},
+	"leash_duration":        {"LeashDuration", "leash_duration", func(p *model.Player) float64 { return p.LeashDuration }},
+	"trap_duration":         {"TrapDuration", "trap_duration", func(p *model.Player) float64 { return p.TrapDuration }},
+	"taunt_duration":        {"TauntDuration", "taunt_duration", func(p *model.Player) float64 { return p.TauntDuration }},
+	"silence_duration":      {"SilenceDuration", "silence_duration", func(p *model.Player) float64 { return p.SilenceDuration }},
+	"break_duration":        {"BreakDuration", "break_duration", func(p *model.Player) float64 { return p.BreakDuration }},
+	"disarm_duration":       {"DisarmDuration", "disarm_duration", func(p *model.Player) float64 { return p.DisarmDuration }},
+	"heal_duration":         {"HealDuration", "heal_duration", func(p *model.Player) float64 { return p.HealDuration }},
+	"heal_value":            {"HealValue", "heal_value", func(p *model.Player) float64 { return p.HealValue }},
+	"time_dead":             {"TimeDead", "time_dead", func(p *model.Player) float64 { return p.TimeDead }},
+	"creeps_stacked":        {"CreepsStacked", "creeps_stacked", func(p *model.Player) float64 { return float64(p.CreepsStacked) }},
+	"wisdoms_captured":      {"WisdomsCaptured", "wisdoms_captured", func(p *model.Player) float64 { return float64(p.WisdomsCaptured) }},
+	"watchers_captured":     {"WatchersCaptured", "watchers_captured", func(p *model.Player) float64 { return float64(p.WatchersCaptured) }},
+	"lotuses_gathered":      {"LotusesGathered", "lotuses_gathered", func(p *model.Player) float64 { return float64(p.LotusesGathered) }},
+	"courier_kills":         {"CourierKills", "courier_kills", func(p *model.Player) float64 { return float64(p.CourierKills) }},
 }
 
 type weightField struct {
@@ -314,10 +314,10 @@ func PlayerVars(p model.Player, duration float64) map[string]float64 {
 		"first_blood":  fb, "hero_damage": float64(p.HeroDamage), "damage_taken": float64(p.DamageTaken),
 		"gold_spent_wards": float64(p.GoldSpentWards), "gold_spent_smoke": float64(p.GoldSpentSmoke),
 		"gold_spent_dust": float64(p.GoldSpentDust), "buff_duration": p.BuffsDuration,
-		"save_duration": p.Save, "purge_duration": p.Purge, "shield_duration": p.ShieldUptime,
+		"save_duration": p.Save, "purge_count": p.Purge, "shield_duration": p.ShieldUptime,
 		"buff_stats_duration": p.BuffStatsDuration, "invisibility_duration": p.InvisibilityDuration,
 		"buff_haste_duration": p.BuffHasteDuration,
-		"fear_duration": p.FearDuration, "roots_duration": p.RootsDuration,
+		"fear_duration":       p.FearDuration, "roots_duration": p.RootsDuration,
 		"leash_duration": p.LeashDuration, "trap_duration": p.TrapDuration,
 		"taunt_duration": p.TauntDuration, "silence_duration": p.SilenceDuration,
 		"break_duration": p.BreakDuration, "disarm_duration": p.DisarmDuration,

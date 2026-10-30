@@ -24,7 +24,7 @@ export const WEIGHT_META: WeightMeta[] = [
   { key: "break_duration", label: "Брейк (сек)", group: "Дебаффы", unit: "×" },
   { key: "disarm_duration", label: "Дизарм (сек)", group: "Дебаффы", unit: "×" },
   { key: "save_duration", label: "Сейвы (сек)", group: "Баффы", unit: "×" },
-  { key: "purge_duration", label: "Развеи (сек)", group: "Баффы", unit: "×" },
+  { key: "purge_count", label: "Развеи (шт)", group: "Баффы", unit: "×" },
   { key: "shield_duration", label: "Щиты (сек)", group: "Баффы", unit: "×" },
   { key: "buff_duration", label: "Буффы (сек)", group: "Баффы", unit: "×" },
   { key: "buff_stats_duration", label: "Св-ва буффов (сек)", group: "Баффы", unit: "×" },

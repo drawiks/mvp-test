@@ -161,6 +161,22 @@ func TestImportExport(t *testing.T) {
 	}
 }
 
+func TestImportMigratesLegacyPurgeToken(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "old.json")
+	if err := os.WriteFile(path, []byte(`{"id":"old","name":"Old","kind":"expression","expression":"purge_duration * 2"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := NewStore(filepath.Join(dir, "f.json"))
+	p, err := store.ImportFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Expression != "purge_count * 2" {
+		t.Fatalf("expression not migrated: %s", p.Expression)
+	}
+}
+
 func TestDefaultLinearWeights(t *testing.T) {
 	if DefaultLinearWeights["kills"] != 0.3 {
 		t.Fatalf("%+v", DefaultLinearWeights)
@@ -312,7 +328,7 @@ func TestSplitExpressionV2(t *testing.T) {
 			t.Fatalf("%s %v != %v", k, weights[k], want)
 		}
 	}
-	for _, want := range []string{"min(healing, 8000)", "max(deaths, 1)", "min(buff_duration, 600)", "min(save_duration + purge_duration + shield_duration, 500)"} {
+	for _, want := range []string{"min(healing, 8000)", "max(deaths, 1)", "min(buff_duration, 600)", "min(save_duration + purge_count + shield_duration, 500)"} {
 		if !strings.Contains(tail, want) {
 			t.Fatalf("%s missing in %s", want, tail)
 		}
@@ -341,7 +357,7 @@ func sampleVars(t *testing.T) map[string]float64 {
 		"healing": 9000, "hero_damage": 20000, "damage_taken": 15000, "tower_damage": 3200,
 		"stun_duration": 45, "camps_stacked": 9, "rune_pickups": 5, "first_blood": 1,
 		"gold_spent_wards": 500, "gold_spent_smoke": 100, "gold_spent_dust": 50,
-		"buff_duration": 700, "save_duration": 300, "purge_duration": 120, "shield_duration": 40,
+		"buff_duration": 700, "save_duration": 300, "purge_count": 120, "shield_duration": 40,
 		"position": 1,
 	}
 }
@@ -528,13 +544,16 @@ func TestMultilineSemicolonSums(t *testing.T) {
 
 func TestMigrateExpressionRenamesTokens(t *testing.T) {
 	got := MigrateExpression("buffs_duration * 1 + save * 2 + purge * 3 + shield_uptime * 4")
-	for _, tok := range []string{"buff_duration", "save_duration", "purge_duration", "shield_duration"} {
+	for _, tok := range []string{"buff_duration", "save_duration", "purge_count", "shield_duration"} {
 		if !strings.Contains(got, tok) {
 			t.Fatalf("%s missing in %s", tok, got)
 		}
 	}
 	if strings.Contains(got, "shield_uptime") || strings.Contains(got, "buffs_duration") {
 		t.Fatalf("old tokens remain: %s", got)
+	}
+	if got := MigrateExpression("purge_duration * 2"); got != "purge_count * 2" {
+		t.Fatalf("purge_duration not renamed: %s", got)
 	}
 }
 

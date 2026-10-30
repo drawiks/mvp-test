@@ -25,7 +25,7 @@ var Stats = []Stat{
 	{"damage_taken", "Dmg Taken"}, {"gold_spent_wards", "Wards Gold"},
 	{"gold_spent_smoke", "Smoke Gold"}, {"gold_spent_dust", "Dust Gold"},
 	{"buff_duration", "Buff Duration"}, {"save_duration", "Save Duration"},
-	{"purge_duration", "Purge Duration"}, {"shield_duration", "Shield Duration"},
+	{"purge_count", "Purge Count"}, {"shield_duration", "Shield Duration"},
 	{"buff_stats_duration", "Buff Stats Duration"}, {"invisibility_duration", "Invisibility Duration"},
 	{"buff_haste_duration", "Buff Haste Duration"},
 
@@ -63,7 +63,7 @@ func init() {
 		{"hero_damage", "hero_damage"}, {"damage_taken", "damage_taken"},
 		{"gold_spent_wards", "gold_spent_wards"}, {"gold_spent_smoke", "gold_spent_smoke"},
 		{"gold_spent_dust", "gold_spent_dust"}, {"buff_duration", "buff_duration"},
-		{"save_duration", "save_duration"}, {"purge_duration", "purge_duration"}, {"shield_duration", "shield_duration"},
+		{"save_duration", "save_duration"}, {"purge_count", "purge_count"}, {"shield_duration", "shield_duration"},
 		{"buff_stats_duration", "buff_stats_duration"}, {"invisibility_duration", "invisibility_duration"},
 		{"buff_haste_duration", "buff_haste_duration"},
 		{"fear_duration", "fear_duration"}, {"roots_duration", "roots_duration"},
@@ -98,7 +98,7 @@ var DefaultLinearWeights = map[string]float64{
 	"healing": 0.004, "tower_damage": 0.001, "camps_stacked": 0.5, "rune_pickups": 0.2,
 	"first_blood": 1.0, "hero_damage": 0.0, "damage_taken": 0.0,
 	"gold_spent_wards": 0.0, "gold_spent_smoke": 0.0, "gold_spent_dust": 0.0,
-	"buff_duration": 0.0, "save_duration": 0.0, "purge_duration": 0.0, "shield_duration": 0.0,
+	"buff_duration": 0.0, "save_duration": 0.0, "purge_count": 0.0, "shield_duration": 0.0,
 	"buff_stats_duration": 0.0, "invisibility_duration": 0.0, "buff_haste_duration": 0.0,
 	"fear_duration": 0.0, "roots_duration": 0.0, "leash_duration": 0.0,
 	"trap_duration": 0.0, "taunt_duration": 0.0, "silence_duration": 0.0,
@@ -113,14 +113,14 @@ const TutorialFormula = `kills * 0.2 + assists * 0.15 + last_hits * 0.003 + xpm 
 	` + (if !(assists < 3) { 2 } else { 0 })` +
 	` + (stun_duration >= 30 ? 1.5 : 0)` +
 	` + round(save_duration * 0.01)` +
-	` + min(save_duration + purge_duration + shield_duration, 500) * 0.015 + min(buff_duration, 600) * 0.008`
+	` + min(save_duration + purge_count + shield_duration, 500) * 0.015 + min(buff_duration, 600) * 0.008`
 
 const StandardV2Formula = "kills * 0.2 + assists * 0.15 + last_hits * 0.003 + xpm * 0.003" +
 	" + tower_damage * 0.0007 + hero_damage * 0.00005" +
 	" + (damage_taken / max(deaths, 1)) * 0.00015" +
 	" + min(healing, 8000) * 0.001 + stun_duration * 0.02" +
 	" + camps_stacked * 0.15 + rune_pickups * 0.1" +
-	" + min(save_duration + purge_duration + shield_duration, 500) * 0.015" +
+	" + min(save_duration + purge_count + shield_duration, 500) * 0.015" +
 	" + min(buff_duration, 600) * 0.008" +
 	" + gold_spent_wards * 0.0015 + gold_spent_smoke * 0.0015 + gold_spent_dust * 0.0015" +
 	" + first_blood * 1 + (0 - deaths * 0.2)"
@@ -162,7 +162,7 @@ func stripComments(s string) string {
 
 // Legacy token → current token. Removed tokens (deaths_base, gold_lost) are
 // neutralized to 0 so old saved formulas keep validating.
-var migrateRe = regexp.MustCompile(`\b(buffs_duration|deaths_base|save|purge|shield_uptime|gold_lost)\b`)
+var migrateRe = regexp.MustCompile(`\b(buffs_duration|deaths_base|save|purge_duration|purge|shield_uptime|gold_lost)\b`)
 
 func migrate(s string) string {
 	return migrateRe.ReplaceAllStringFunc(s, func(w string) string {
@@ -171,8 +171,8 @@ func migrate(s string) string {
 			return "buff_duration"
 		case "save":
 			return "save_duration"
-		case "purge":
-			return "purge_duration"
+		case "purge", "purge_duration":
+			return "purge_count"
 		case "shield_uptime":
 			return "shield_duration"
 		default:

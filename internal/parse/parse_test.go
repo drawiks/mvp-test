@@ -58,7 +58,7 @@ func TestAggregatesBuffs(t *testing.T) {
 	      "buff_duration": 120.5,
 	      "buff_sources": [
 	        {"inflictor": "a", "category": "save", "duration": 30.0},
-	        {"inflictor": "b", "category": "purge", "duration": 10.5},
+	        {"inflictor": "b", "category": "purge", "count": 3},
 	        {"inflictor": "c", "category": "shield", "duration": 5.0},
 	        {"inflictor": "d", "category": "heal", "duration": 100.0},
 	        {"inflictor": "e", "category": "save", "duration": 1.5},
@@ -74,7 +74,7 @@ func TestAggregatesBuffs(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := r.Players[0]
-	if p.BuffsDuration != 120.5 || p.Save != 31.5 || p.Purge != 10.5 || p.ShieldUptime != 5.0 {
+	if p.BuffsDuration != 120.5 || p.Save != 31.5 || p.Purge != 3 || p.ShieldUptime != 5.0 {
 		t.Fatalf("buffs: %+v", p)
 	}
 	if p.BuffStatsDuration != 3.0 || p.InvisibilityDuration != 1.5 || p.BuffHasteDuration != 2.5 {
@@ -126,14 +126,17 @@ func TestLegacyValueFallback(t *testing.T) {
 	 "players": [
 	   {"steam_id": 1, "player_id": 0, "hero_id": 1, "hero": "H",
 	    "team": "radiant", "name": "n",
-	    "buff_sources": [{"inflictor": "x", "category": "save", "value": 7.5}]}
+	    "buff_sources": [
+	      {"inflictor": "x", "category": "save", "value": 7.5},
+	      {"inflictor": "y", "category": "purge", "duration": 4.5}
+	    ]}
 	 ]}
 	`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Players[0].Save != 7.5 {
-		t.Fatalf("save %v", r.Players[0].Save)
+	if r.Players[0].Save != 7.5 || r.Players[0].Purge != 4.5 {
+		t.Fatalf("save %v purge %v", r.Players[0].Save, r.Players[0].Purge)
 	}
 }
 
