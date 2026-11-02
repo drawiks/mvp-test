@@ -20,15 +20,16 @@ import (
 const parserURLDefault = "http://localhost:5600"
 
 type App struct {
-	ctx         context.Context
-	store       *formula.Store
-	varStore    *formula.VariableStore
-	configPath  string
-	parserURL   string
-	result      *model.Result
-	resultMu    sync.Mutex
-	parseCancel context.CancelFunc
-	parseMu     sync.Mutex
+	ctx          context.Context
+	store        *formula.Store
+	varStore     *formula.VariableStore
+	configPath   string
+	parserURL    string
+	parserEngine string
+	result       *model.Result
+	resultMu     sync.Mutex
+	parseCancel  context.CancelFunc
+	parseMu      sync.Mutex
 }
 
 func NewApp() *App {
@@ -47,12 +48,19 @@ func (a *App) startup(ctx context.Context) {
 	a.store = formula.NewStore(filepath.Join(dir, "formulas.json"))
 	a.varStore = formula.NewVariableStore(filepath.Join(dir, "variables.json"))
 	a.parserURL = parserURLDefault
+	a.parserEngine = parse.EngineOdota
 	if data, err := os.ReadFile(a.configPath); err == nil {
 		var cfg struct {
-			ParserURL string `json:"parser_url"`
+			ParserURL    string `json:"parser_url"`
+			ParserEngine string `json:"parser_engine"`
 		}
-		if json.Unmarshal(data, &cfg) == nil && cfg.ParserURL != "" {
-			a.parserURL = cfg.ParserURL
+		if json.Unmarshal(data, &cfg) == nil {
+			if cfg.ParserURL != "" {
+				a.parserURL = cfg.ParserURL
+			}
+			if cfg.ParserEngine == parse.EngineManta {
+				a.parserEngine = parse.EngineManta
+			}
 		}
 	}
 }
@@ -75,9 +83,11 @@ func (a *App) ParseReplay(path string) error {
 	runtime.EventsEmit(a.ctx, "parseStart", map[string]any{"path": path})
 	runtime.EventsEmit(a.ctx, "matchInfo", nil)
 
+	parserURL, parserEngine := a.parserURL, a.parserEngine
+
 	go func() {
 		defer cancel()
-		result, err := parse.ParseReplay(ctx, path, a.parserURL)
+		result, err := parse.ParseReplay(ctx, path, parserURL, parserEngine)
 		if err != nil {
 			runtime.EventsEmit(a.ctx, "parseDone", map[string]any{"ok": false, "error": err.Error()})
 			return
@@ -134,7 +144,27 @@ func (a *App) SetParserURL(url string) error {
 		return errors.New("URL должен начинаться с http:// или https://")
 	}
 	a.parserURL = strings.TrimSuffix(url, "/")
-	cfg, _ := json.Marshal(map[string]any{"parser_url": a.parserURL})
+	return a.saveConfig()
+}
+
+func (a *App) GetParserEngine() string { return a.parserEngine }
+
+func (a *App) SetParserEngine(engine string) error {
+	if engine != parse.EngineOdota && engine != parse.EngineManta {
+		return errors.New("неизвестный движок парсинга: " + engine)
+	}
+	a.parserEngine = engine
+	return a.saveConfig()
+}
+
+func (a *App) saveConfig() error {
+	cfg, err := json.Marshal(map[string]any{
+		"parser_url":    a.parserURL,
+		"parser_engine": a.parserEngine,
+	})
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(a.configPath, cfg, 0o644)
 }
 

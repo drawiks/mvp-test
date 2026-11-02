@@ -9,6 +9,7 @@ import FormulasPage from "@/pages/FormulasPage";
 import VariablesPage from "@/pages/VariablesPage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
@@ -26,19 +27,22 @@ export default function App() {
   const [error, setError] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [parserURL, setParserURL] = useState("");
+  const [parserEngine, setParserEngine] = useState("odota");
   const [loading, setLoading] = useState(true);
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
   const [page, setPage] = useState<"home" | "formulas" | "variables">("home");
 
   const refreshPresets = async () => {
-    const [list, active, url] = await Promise.all([
+    const [list, active, url, engine] = await Promise.all([
       Bindings.ListPresets(),
       Bindings.ActivePresetID(),
       Bindings.GetParserURL(),
+      Bindings.GetParserEngine(),
     ]);
     setPresets(list);
     setActiveId(active);
     setParserURL(url);
+    setParserEngine(engine);
   };
 
   useEffect(() => {
@@ -72,9 +76,10 @@ export default function App() {
     };
   }, []);
 
-  const saveURL = async () => {
+  const saveSettings = async () => {
     try {
-      await Bindings.SetParserURL(parserURL);
+      await Bindings.SetParserEngine(parserEngine);
+      if (parserEngine !== "manta") await Bindings.SetParserURL(parserURL);
       setShowSettings(false);
     } catch (e) {
       setError(String(e));
@@ -149,12 +154,31 @@ export default function App() {
       </header>
 
       {showSettings && (
-        <div className="flex items-center gap-2 border-b border-border bg-background/60 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-4 py-2">
+          <label className="text-xs text-muted-foreground">Движок:</label>
+          <Select value={parserEngine} onValueChange={setParserEngine}>
+            <SelectTrigger className="h-8 w-56">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="odota">odota-cli (HTTP)</SelectItem>
+              <SelectItem value="manta">manta-cli (локально)</SelectItem>
+            </SelectContent>
+          </Select>
           <label className="text-xs text-muted-foreground">URL парсера:</label>
-          <Input value={parserURL} onChange={(e) => setParserURL(e.target.value)} className="h-8 w-80" placeholder="http://localhost:5600" />
-          <Button size="sm" onClick={() => void saveURL()}>
+          <Input
+            value={parserURL}
+            onChange={(e) => setParserURL(e.target.value)}
+            disabled={parserEngine === "manta"}
+            className="h-8 w-80"
+            placeholder={parserEngine === "manta" ? "не используется" : "http://localhost:5600"}
+          />
+          <Button size="sm" onClick={() => void saveSettings()}>
             Сохранить
           </Button>
+          {parserEngine === "manta" && (
+            <span className="text-[11px] text-muted-foreground">.dem парсится локально, Docker не нужен</span>
+          )}
         </div>
       )}
 

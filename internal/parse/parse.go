@@ -11,9 +11,17 @@ import (
 	"os"
 	"strings"
 
+	"github.com/drawiks/manta-cli"
 	"github.com/drawiks/odota-cli/parser"
 	"github.com/klauspost/compress/zstd"
 	"mvp/internal/model"
+)
+
+// Parser engines selectable in the app. Local JSON/NDJSON files always use the
+// odota-cli aggregator; the engine only changes how .dem replays are parsed.
+const (
+	EngineOdota = "odota"
+	EngineManta = "manta"
 )
 
 // Errors surfaced to the UI in user-facing messages.
@@ -177,10 +185,14 @@ func sumCategory(sources []parser.SourceEntry, category string) float64 {
 	return total
 }
 
-// ParseReplay is the full pipeline: decompress (bz2/zstd), then either POST
-// the replay to odota/parser or aggregate local event JSON.
-func ParseReplay(ctx context.Context, path, parserURL string) (model.Result, error) {
+// ParseReplay is the full pipeline: local JSON/NDJSON aggregation, or a .dem
+// replay parsed by the selected engine (odota over HTTP, manta in-process).
+func ParseReplay(ctx context.Context, path, parserURL, engine string) (model.Result, error) {
 	kind := bySuffix(strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(path, ".bz2"), ".zst")))
+
+	if kind == "dem" && engine == EngineManta {
+		return parseManta(ctx, path)
+	}
 
 	input := path
 	if compressedHeader(path) {
@@ -240,6 +252,27 @@ func parseJSONFile(path string) (model.Result, error) {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
 	}
 	return FromMatch(match), nil
+}
+
+func parseManta(ctx context.Context, path string) (model.Result, error) {
+	match, err := manta.ParseFile(ctx, path)
+	if err != nil {
+		if errors.Is(err, manta.ErrNotReplay) {
+			return model.Result{}, fmt.Errorf("%w: %v", ErrReplay, err)
+		}
+		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
+	}
+	return fromManta(match)
+}
+
+// fromManta reuses the aggregated-JSON mapping: manta emits the same match
+// schema as odota-cli.
+func fromManta(match *manta.Match) (model.Result, error) {
+	data, err := json.Marshal(match)
+	if err != nil {
+		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
+	}
+	return ReadAggregatedJSON(data)
 }
 
 func parseFromHTTP(ctx context.Context, path, parserURL string) (model.Result, error) {

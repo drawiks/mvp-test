@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"mvp/internal/formula"
@@ -90,6 +91,26 @@ func TestAppParserURLRoundtrip(t *testing.T) {
 		t.Fatal("expected empty before startup")
 	}
 	_ = a
+}
+
+func TestSetParserEngine(t *testing.T) {
+	a := &App{configPath: filepath.Join(t.TempDir(), "config.json"), parserURL: parserURLDefault}
+	if err := a.SetParserEngine("bogus"); err == nil {
+		t.Fatal("want error for unknown engine")
+	}
+	if err := a.SetParserEngine("manta"); err != nil {
+		t.Fatal(err)
+	}
+	if a.GetParserEngine() != "manta" {
+		t.Fatalf("engine %q", a.GetParserEngine())
+	}
+	data, err := os.ReadFile(a.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"parser_engine":"manta","parser_url":"http://localhost:5600"}` {
+		t.Fatalf("config %s", data)
+	}
 }
 
 func TestEvalVariableAgainstLoadedPlayer(t *testing.T) {

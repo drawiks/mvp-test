@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/drawiks/manta-cli"
 	"github.com/klauspost/compress/zstd"
 )
 
@@ -145,7 +146,7 @@ func TestParseReplayJSON(t *testing.T) {
 	if err := os.WriteFile(tmp, rawFixture(t), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r, err := ParseReplay(context.Background(), tmp, "http://localhost:5600")
+	r, err := ParseReplay(context.Background(), tmp, "http://localhost:5600", EngineOdota)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +157,7 @@ func TestParseReplayJSON(t *testing.T) {
 
 func TestParseReplayBzip2(t *testing.T) {
 	compressed := filepath.Join("..", "testdata", "match.json.bz2")
-	r, err := ParseReplay(context.Background(), compressed, "http://localhost:5600")
+	r, err := ParseReplay(context.Background(), compressed, "http://localhost:5600", EngineOdota)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func TestParseReplayZstd(t *testing.T) {
 	compressed := filepath.Join(dir, "match.json.zst")
 	writeZstd(t, compressed, rawFixture(t))
 
-	r, err := ParseReplay(context.Background(), compressed, "http://localhost:5600")
+	r, err := ParseReplay(context.Background(), compressed, "http://localhost:5600", EngineOdota)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,8 +181,46 @@ func TestParseReplayZstd(t *testing.T) {
 }
 
 func TestParseReplayMissingFile(t *testing.T) {
-	if _, err := ParseReplay(context.Background(), filepath.Join(t.TempDir(), "nope.dem"), ""); err == nil {
+	if _, err := ParseReplay(context.Background(), filepath.Join(t.TempDir(), "nope.dem"), "", EngineOdota); err == nil {
 		t.Fatal("want error")
+	}
+}
+
+func TestParseReplayMantaMissingFile(t *testing.T) {
+	if _, err := ParseReplay(context.Background(), filepath.Join(t.TempDir(), "nope.dem"), "", EngineManta); err == nil {
+		t.Fatal("want error")
+	}
+}
+
+func TestFromManta(t *testing.T) {
+	r, err := fromManta(&manta.Match{
+		MatchID: 42, DurationSec: 60, RadiantWin: true,
+		Players: []manta.Player{{
+			SteamID: 1, PlayerID: 0, HeroID: 39, Hero: "queen_of_pain",
+			Team: "radiant", Name: "n", Position: 2, Lane: "mid",
+			BuffSources: []manta.SourceEntry{{Inflictor: "x", Category: "purge", Count: 4}},
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := r.Players[0]
+	if r.MatchID != 42 || p.Hero != "queenofpain" || p.Purge != 4 || p.Position != 2 {
+		t.Fatalf("match %d player %+v", r.MatchID, p)
+	}
+}
+
+func TestMantaReplaySmoke(t *testing.T) {
+	path := os.Getenv("MVP_MANTA_REPLAY")
+	if path == "" {
+		t.Skip("set MVP_MANTA_REPLAY to a .dem file")
+	}
+	r, err := ParseReplay(context.Background(), path, "", EngineManta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.MatchID == 0 || len(r.Players) != 10 {
+		t.Fatalf("match %d players %d", r.MatchID, len(r.Players))
 	}
 }
 

@@ -46,6 +46,10 @@ export function ExportVariableDialog(arg1) {
   return window['go']['main']['App']['ExportVariableDialog'](arg1);
 }
 
+export function GetParserEngine() {
+  return window['go']['main']['App']['GetParserEngine']();
+}
+
 export function GetParserURL() {
   return window['go']['main']['App']['GetParserURL']();
 }
@@ -92,6 +96,10 @@ export function RemoveVariable(arg1) {
 
 export function SetActivePreset(arg1) {
   return window['go']['main']['App']['SetActivePreset'](arg1);
+}
+
+export function SetParserEngine(arg1) {
+  return window['go']['main']['App']['SetParserEngine'](arg1);
 }
 
 export function SetParserURL(arg1) {

@@ -25,6 +25,8 @@ export function ExportPresetDialog(arg1:string):Promise<boolean>;
 
 export function ExportVariableDialog(arg1:string):Promise<boolean>;
 
+export function GetParserEngine():Promise<string>;
+
 export function GetParserURL():Promise<string>;
 
 export function HeroImageURL(arg1:string):Promise<string>;
@@ -48,6 +50,8 @@ export function RemovePreset(arg1:string):Promise<boolean>;
 export function RemoveVariable(arg1:string):Promise<void>;
 
 export function SetActivePreset(arg1:string):Promise<void>;
+
+export function SetParserEngine(arg1:string):Promise<void>;
 
 export function SetParserURL(arg1:string):Promise<void>;
 
