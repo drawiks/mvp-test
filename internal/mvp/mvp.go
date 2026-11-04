@@ -16,6 +16,7 @@ type Weights struct {
 	XPM                  float64
 	Stun                 float64
 	Healing              float64
+	ManaRestored         float64
 	TowerDamage          float64
 	Camps                float64
 	Runes                float64
@@ -25,6 +26,7 @@ type Weights struct {
 	GoldSpentWards       float64
 	GoldSpentSmoke       float64
 	GoldSpentDust        float64
+	GoldLost             float64
 	BuffsDuration        float64
 	Save                 float64
 	Purge                float64
@@ -67,6 +69,7 @@ var weightKeys = map[string]weightField{
 	"xpm":           {"XPM", "xpm", func(p *model.Player) float64 { return float64(p.XPM) }},
 	"stun_duration": {"Stun", "stun_duration", func(p *model.Player) float64 { return p.StunDuration }},
 	"healing":       {"Healing", "healing", func(p *model.Player) float64 { return p.Healing }},
+	"mana_restored": {"ManaRestored", "mana_restored", func(p *model.Player) float64 { return p.ManaRestored }},
 	"tower_damage":  {"TowerDamage", "tower_damage", func(p *model.Player) float64 { return float64(p.TowerDamage) }},
 	"camps_stacked": {"Camps", "camps_stacked", func(p *model.Player) float64 { return float64(p.CampsStacked) }},
 	"rune_pickups":  {"Runes", "rune_pickups", func(p *model.Player) float64 { return float64(p.RunePickups) }},
@@ -81,6 +84,7 @@ var weightKeys = map[string]weightField{
 	"gold_spent_wards":      {"GoldSpentWards", "gold_spent_wards", func(p *model.Player) float64 { return float64(p.GoldSpentWards) }},
 	"gold_spent_smoke":      {"GoldSpentSmoke", "gold_spent_smoke", func(p *model.Player) float64 { return float64(p.GoldSpentSmoke) }},
 	"gold_spent_dust":       {"GoldSpentDust", "gold_spent_dust", func(p *model.Player) float64 { return float64(p.GoldSpentDust) }},
+	"gold_lost":             {"GoldLost", "gold_lost", func(p *model.Player) float64 { return float64(p.GoldLost) }},
 	"buff_duration":         {"BuffsDuration", "buff_duration", func(p *model.Player) float64 { return p.BuffsDuration }},
 	"save_duration":         {"Save", "save_duration", func(p *model.Player) float64 { return p.Save }},
 	"purge_count":           {"Purge", "purge_count", func(p *model.Player) float64 { return p.Purge }},
@@ -131,6 +135,8 @@ func (w *Weights) value(key string) float64 {
 		return w.Stun
 	case "Healing":
 		return w.Healing
+	case "ManaRestored":
+		return w.ManaRestored
 	case "TowerDamage":
 		return w.TowerDamage
 	case "Camps":
@@ -149,6 +155,8 @@ func (w *Weights) value(key string) float64 {
 		return w.GoldSpentSmoke
 	case "GoldSpentDust":
 		return w.GoldSpentDust
+	case "GoldLost":
+		return w.GoldLost
 	case "BuffsDuration":
 		return w.BuffsDuration
 	case "Save":
@@ -231,6 +239,8 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 			w.Stun = v
 		case "Healing":
 			w.Healing = v
+		case "ManaRestored":
+			w.ManaRestored = v
 		case "TowerDamage":
 			w.TowerDamage = v
 		case "Camps":
@@ -249,6 +259,8 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 			w.GoldSpentSmoke = v
 		case "GoldSpentDust":
 			w.GoldSpentDust = v
+		case "GoldLost":
+			w.GoldLost = v
 		case "BuffsDuration":
 			w.BuffsDuration = v
 		case "Save":
@@ -308,12 +320,14 @@ func PlayerVars(p model.Player, duration float64) map[string]float64 {
 	return map[string]float64{
 		"kills": float64(p.Kills), "deaths": float64(p.Deaths), "assists": float64(p.Assists),
 		"last_hits": float64(p.LastHits), "gpm": float64(p.GPM), "xpm": float64(p.XPM),
-		"stun_duration": p.StunDuration, "healing": p.Healing, "tower_damage": float64(p.TowerDamage),
+		"stun_duration": p.StunDuration, "healing": p.Healing, "mana_restored": p.ManaRestored,
+		"tower_damage":  float64(p.TowerDamage),
 		"camps_stacked": float64(p.CampsStacked), "creeps_stacked": float64(p.CreepsStacked),
 		"rune_pickups": float64(p.RunePickups),
 		"first_blood":  fb, "hero_damage": float64(p.HeroDamage), "damage_taken": float64(p.DamageTaken),
 		"gold_spent_wards": float64(p.GoldSpentWards), "gold_spent_smoke": float64(p.GoldSpentSmoke),
-		"gold_spent_dust": float64(p.GoldSpentDust), "buff_duration": p.BuffsDuration,
+		"gold_spent_dust": float64(p.GoldSpentDust), "gold_lost": float64(p.GoldLost),
+		"buff_duration": p.BuffsDuration,
 		"save_duration": p.Save, "purge_count": p.Purge, "shield_duration": p.ShieldUptime,
 		"buff_stats_duration": p.BuffStatsDuration, "invisibility_duration": p.InvisibilityDuration,
 		"buff_haste_duration": p.BuffHasteDuration,

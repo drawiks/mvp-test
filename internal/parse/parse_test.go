@@ -198,6 +198,7 @@ func TestFromManta(t *testing.T) {
 		Players: []manta.Player{{
 			SteamID: 1, PlayerID: 0, HeroID: 39, Hero: "queen_of_pain",
 			Team: "radiant", Name: "n", Position: 2, Lane: "mid",
+			GoldLost: 456, ManaRestored: 123,
 			BuffSources: []manta.SourceEntry{{Inflictor: "x", Category: "purge", Count: 4}},
 		}},
 	})
@@ -207,6 +208,25 @@ func TestFromManta(t *testing.T) {
 	p := r.Players[0]
 	if r.MatchID != 42 || p.Hero != "queenofpain" || p.Purge != 4 || p.Position != 2 {
 		t.Fatalf("match %d player %+v", r.MatchID, p)
+	}
+	if p.GoldLost != 456 || p.ManaRestored != 123 {
+		t.Fatalf("gold_lost %d mana_restored %v", p.GoldLost, p.ManaRestored)
+	}
+}
+
+func TestReadAggregatedExtensions(t *testing.T) {
+	r, err := ReadAggregatedJSON([]byte(`
+	{"duration_sec": 1, "radiant_win": true,
+	 "players": [
+	   {"player_id": 0, "hero": "rubick", "gold_lost": 42, "mana_restored": 99}
+	 ]}
+	`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := r.Players[0]
+	if p.GoldLost != 42 || p.ManaRestored != 99 {
+		t.Fatalf("gold_lost %d mana_restored %v", p.GoldLost, p.ManaRestored)
 	}
 }
 

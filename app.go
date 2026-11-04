@@ -302,9 +302,9 @@ func (a *App) EvalVariable(name, expr string, base map[string]float64) (float64,
 func (a *App) TestPlayerStats() map[string]float64 {
 	p := model.Player{
 		Kills: 10, Deaths: 4, Assists: 7, LastHits: 250, GPM: 580, XPM: 640,
-		Healing: 9000, HeroDamage: 20000, DamageTaken: 15000, TowerDamage: 3200,
+		Healing: 9000, ManaRestored: 2500, HeroDamage: 20000, DamageTaken: 15000, TowerDamage: 3200,
 		StunDuration: 45, CampsStacked: 9, RunePickups: 5, FirstBlood: true,
-		GoldSpentWards: 500, GoldSpentSmoke: 100, GoldSpentDust: 50,
+		GoldSpentWards: 500, GoldSpentSmoke: 100, GoldSpentDust: 50, GoldLost: 800,
 		BuffsDuration: 700, Save: 300, Purge: 120, ShieldUptime: 40,
 		BuffStatsDuration: 200, InvisibilityDuration: 30, BuffHasteDuration: 60,
 		CreepsStacked: 4, TimeDead: 480, Position: 2, Lane: "mid",

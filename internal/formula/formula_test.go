@@ -184,8 +184,11 @@ func TestDefaultLinearWeights(t *testing.T) {
 	if _, ok := DefaultLinearWeights["deaths_base"]; ok {
 		t.Fatalf("deaths_base must be gone")
 	}
-	if _, ok := DefaultLinearWeights["gold_lost"]; ok {
-		t.Fatalf("gold_lost must be gone")
+	if _, ok := DefaultLinearWeights["gold_lost"]; !ok {
+		t.Fatalf("gold_lost must be registered")
+	}
+	if _, ok := DefaultLinearWeights["mana_restored"]; !ok {
+		t.Fatalf("mana_restored must be registered")
 	}
 }
 
@@ -558,15 +561,15 @@ func TestMigrateExpressionRenamesTokens(t *testing.T) {
 }
 
 func TestMigrateExpressionNeutralizesRemoved(t *testing.T) {
-	for _, old := range []string{"deaths_base", "gold_lost"} {
-		expr := "kills * 2 + " + old + " * 5"
-		got := MigrateExpression(expr)
-		if err := Validate(got, statTokens); err != nil {
-			t.Fatalf("%s not neutralized: %s (%v)", old, got, err)
-		}
-		if strings.Contains(got, old) {
-			t.Fatalf("%s remains: %s", old, got)
-		}
+	got := MigrateExpression("kills * 2 + deaths_base * 5")
+	if err := Validate(got, statTokens); err != nil {
+		t.Fatalf("deaths_base not neutralized: %s (%v)", got, err)
+	}
+	if strings.Contains(got, "deaths_base") {
+		t.Fatalf("deaths_base remains: %s", got)
+	}
+	if got := MigrateExpression("gold_lost * 2"); got != "gold_lost * 2" {
+		t.Fatalf("gold_lost must stay valid: %s", got)
 	}
 }
 
@@ -710,12 +713,12 @@ func TestStoreLoadMigratesLegacyKeys(t *testing.T) {
 	if !ok {
 		t.Fatal("preset p missing")
 	}
-	for k, want := range map[string]float64{"kills": 0.3, "stun_duration": 0.05, "camps_stacked": 0.5, "rune_pickups": 0.2} {
+	for k, want := range map[string]float64{"kills": 0.3, "stun_duration": 0.05, "camps_stacked": 0.5, "rune_pickups": 0.2, "gold_lost": 0.1} {
 		if p.Weights[k] != want {
 			t.Fatalf("%s %v != %v", k, p.Weights[k], want)
 		}
 	}
-	for _, bad := range []string{"deaths_base", "gold_lost", "stun", "camps", "runes"} {
+	for _, bad := range []string{"deaths_base", "stun", "camps", "runes"} {
 		if _, ok := p.Weights[bad]; ok {
 			t.Fatalf("legacy key %s survived", bad)
 		}

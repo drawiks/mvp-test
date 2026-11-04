@@ -159,6 +159,21 @@ func TestWeightsToFromMappingRoundtrip(t *testing.T) {
 	}
 }
 
+func TestManaRestoredAndGoldLostTokens(t *testing.T) {
+	p := model.Player{ManaRestored: 1234, GoldLost: 500}
+	vars := PlayerVars(p, 0)
+	if vars["mana_restored"] != 1234 || vars["gold_lost"] != 500 {
+		t.Fatalf("vars %v", vars)
+	}
+	w := WeightsFromMapping(map[string]float64{"mana_restored": 0.1, "gold_lost": -0.2})
+	if w.ManaRestored != 0.1 || w.GoldLost != -0.2 {
+		t.Fatalf("weights %+v", w)
+	}
+	if WeightsToMapping(w)["mana_restored"] != 0.1 {
+		t.Fatalf("mapping %+v", WeightsToMapping(w))
+	}
+}
+
 func TestExpressionPresetMatchesLinearDefaults(t *testing.T) {
 	r := fixtureResult(t)
 	byName := map[string]model.Player{}

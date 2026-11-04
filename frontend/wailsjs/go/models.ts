@@ -73,6 +73,7 @@ export namespace main {
 	    GPM: number;
 	    XPM: number;
 	    Healing: number;
+	    ManaRestored: number;
 	    HeroDamage: number;
 	    DamageTaken: number;
 	    TowerDamage: number;
@@ -81,6 +82,7 @@ export namespace main {
 	    GoldSpentWards: number;
 	    GoldSpentSmoke: number;
 	    GoldSpentDust: number;
+	    GoldLost: number;
 	    CampsStacked: number;
 	    CreepsStacked: number;
 	    RunePickups: number;
@@ -136,6 +138,7 @@ export namespace main {
 	        this.GPM = source["GPM"];
 	        this.XPM = source["XPM"];
 	        this.Healing = source["Healing"];
+	        this.ManaRestored = source["ManaRestored"];
 	        this.HeroDamage = source["HeroDamage"];
 	        this.DamageTaken = source["DamageTaken"];
 	        this.TowerDamage = source["TowerDamage"];
@@ -144,6 +147,7 @@ export namespace main {
 	        this.GoldSpentWards = source["GoldSpentWards"];
 	        this.GoldSpentSmoke = source["GoldSpentSmoke"];
 	        this.GoldSpentDust = source["GoldSpentDust"];
+	        this.GoldLost = source["GoldLost"];
 	        this.CampsStacked = source["CampsStacked"];
 	        this.CreepsStacked = source["CreepsStacked"];
 	        this.RunePickups = source["RunePickups"];

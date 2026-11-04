@@ -230,12 +230,12 @@ var legacyWeightKey = map[string]string{
 }
 
 // migratePreset updates a loaded preset to the current token registry: legacy
-// linear weight keys are renamed, removed keys (deaths_base, gold_lost) are
-// dropped, and stored expressions are rewritten to current token names.
+// linear weight keys are renamed, removed keys (deaths_base) are dropped, and
+// stored expressions are rewritten to current token names.
 func migratePreset(p Preset) Preset {
 	migrated := map[string]float64{}
 	for k, v := range p.Weights {
-		if k == "deaths_base" || k == "gold_lost" {
+		if k == "deaths_base" {
 			continue
 		}
 		if nk, ok := legacyWeightKey[k]; ok {

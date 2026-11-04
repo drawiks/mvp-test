@@ -81,7 +81,30 @@ func ReadAggregatedJSON(data []byte) (model.Result, error) {
 	if len(match.Players) == 0 && !hasPlayersField(data) {
 		return model.Result{}, ErrNoPlayers
 	}
-	return FromMatch(&match), nil
+	result := FromMatch(&match)
+	applyManaRestored(&result, data)
+	return result, nil
+}
+
+// applyManaRestored copies manta's mana_restored extension, which odota-cli's
+// parser.Match does not declare.
+func applyManaRestored(result *model.Result, data []byte) {
+	var ext struct {
+		Players []struct {
+			PlayerID     int     `json:"player_id"`
+			ManaRestored float64 `json:"mana_restored"`
+		} `json:"players"`
+	}
+	if json.Unmarshal(bytes.TrimSpace(data), &ext) != nil {
+		return
+	}
+	mana := make(map[int]float64, len(ext.Players))
+	for _, p := range ext.Players {
+		mana[p.PlayerID] = p.ManaRestored
+	}
+	for i := range result.Players {
+		result.Players[i].ManaRestored = mana[result.Players[i].PlayerID]
+	}
 }
 
 func hasPlayersField(data []byte) bool {
@@ -136,6 +159,7 @@ func FromPlayer(p parser.Player) model.Player {
 		GoldSpentWards:       p.GoldSpentWards,
 		GoldSpentSmoke:       p.GoldSpentSmoke,
 		GoldSpentDust:        p.GoldSpentDust,
+		GoldLost:             p.GoldLost,
 		CampsStacked:         p.CampsStacked,
 		CreepsStacked:        p.CreepsStacked,
 		RunePickups:          p.RunePickups,
@@ -265,8 +289,8 @@ func parseManta(ctx context.Context, path string) (model.Result, error) {
 	return fromManta(match)
 }
 
-// fromManta reuses the aggregated-JSON mapping: manta emits the same match
-// schema as odota-cli.
+// fromManta reuses the aggregated-JSON mapping: manta emits the odota-cli
+// match schema plus the mana_restored extension.
 func fromManta(match *manta.Match) (model.Result, error) {
 	data, err := json.Marshal(match)
 	if err != nil {

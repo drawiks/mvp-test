@@ -1,42 +1,44 @@
 package model
 
 type Player struct {
-	SteamID        int64
-	PlayerID       int
-	HeroID         int
-	Hero           string
-	Team           string
-	Name           string
-	Position       int
-	Lane           string
-	Kills          int
-	Deaths         int
-	Assists        int
-	Level          int
-	LastHits       int
-	Networth       int
-	GPM            int
-	XPM            int
-	Healing        float64
-	HeroDamage     int
-	DamageTaken    int
-	TowerDamage    int
-	TimeDead       float64
-	StunDuration   float64
-	GoldSpentWards int
-	GoldSpentSmoke int
-	GoldSpentDust  int
-	CampsStacked   int
-	CreepsStacked  int
-	RunePickups    int
-	FirstBlood     bool
-	BuffsDuration      float64
-	Save               float64
-	Purge              float64
-	ShieldUptime       float64
-	BuffStatsDuration  float64
+	SteamID              int64
+	PlayerID             int
+	HeroID               int
+	Hero                 string
+	Team                 string
+	Name                 string
+	Position             int
+	Lane                 string
+	Kills                int
+	Deaths               int
+	Assists              int
+	Level                int
+	LastHits             int
+	Networth             int
+	GPM                  int
+	XPM                  int
+	Healing              float64
+	ManaRestored         float64
+	HeroDamage           int
+	DamageTaken          int
+	TowerDamage          int
+	TimeDead             float64
+	StunDuration         float64
+	GoldSpentWards       int
+	GoldSpentSmoke       int
+	GoldSpentDust        int
+	GoldLost             int
+	CampsStacked         int
+	CreepsStacked        int
+	RunePickups          int
+	FirstBlood           bool
+	BuffsDuration        float64
+	Save                 float64
+	Purge                float64
+	ShieldUptime         float64
+	BuffStatsDuration    float64
 	InvisibilityDuration float64
-	BuffHasteDuration  float64
+	BuffHasteDuration    float64
 
 	FearDuration     float64
 	RootsDuration    float64

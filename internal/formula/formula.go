@@ -19,11 +19,13 @@ type Stat struct {
 var Stats = []Stat{
 	{"kills", "Kills"}, {"deaths", "Deaths"}, {"assists", "Assists"},
 	{"last_hits", "Last Hits"}, {"gpm", "GPM"}, {"xpm", "XPM"},
-	{"stun_duration", "Stun"}, {"healing", "Healing"}, {"tower_damage", "Tower Dmg"},
+	{"stun_duration", "Stun"}, {"healing", "Healing"}, {"mana_restored", "Mana Restored"},
+	{"tower_damage", "Tower Dmg"},
 	{"camps_stacked", "Camps Stacked"}, {"rune_pickups", "Rune Pickups"},
 	{"first_blood", "First Blood"}, {"hero_damage", "Hero Dmg"},
 	{"damage_taken", "Dmg Taken"}, {"gold_spent_wards", "Wards Gold"},
 	{"gold_spent_smoke", "Smoke Gold"}, {"gold_spent_dust", "Dust Gold"},
+	{"gold_lost", "Gold Lost"},
 	{"buff_duration", "Buff Duration"}, {"save_duration", "Save Duration"},
 	{"purge_count", "Purge Count"}, {"shield_duration", "Shield Duration"},
 	{"buff_stats_duration", "Buff Stats Duration"}, {"invisibility_duration", "Invisibility Duration"},
@@ -58,11 +60,13 @@ func init() {
 	terms := []struct{ token, key string }{
 		{"kills", "kills"}, {"deaths", "deaths"}, {"assists", "assists"},
 		{"last_hits", "last_hits"}, {"gpm", "gpm"}, {"xpm", "xpm"},
-		{"stun_duration", "stun_duration"}, {"healing", "healing"}, {"tower_damage", "tower_damage"},
+		{"stun_duration", "stun_duration"}, {"healing", "healing"}, {"mana_restored", "mana_restored"},
+		{"tower_damage", "tower_damage"},
 		{"camps_stacked", "camps_stacked"}, {"rune_pickups", "rune_pickups"}, {"first_blood", "first_blood"},
 		{"hero_damage", "hero_damage"}, {"damage_taken", "damage_taken"},
 		{"gold_spent_wards", "gold_spent_wards"}, {"gold_spent_smoke", "gold_spent_smoke"},
-		{"gold_spent_dust", "gold_spent_dust"}, {"buff_duration", "buff_duration"},
+		{"gold_spent_dust", "gold_spent_dust"}, {"gold_lost", "gold_lost"},
+		{"buff_duration", "buff_duration"},
 		{"save_duration", "save_duration"}, {"purge_count", "purge_count"}, {"shield_duration", "shield_duration"},
 		{"buff_stats_duration", "buff_stats_duration"}, {"invisibility_duration", "invisibility_duration"},
 		{"buff_haste_duration", "buff_haste_duration"},
@@ -95,9 +99,9 @@ var Examples = []struct{ Name, Expression string }{
 var DefaultLinearWeights = map[string]float64{
 	"kills": 0.3, "deaths": 0.3, "assists": 0.15,
 	"last_hits": 0.003, "gpm": 0.002, "xpm": 0.002, "stun_duration": 0.05,
-	"healing": 0.004, "tower_damage": 0.001, "camps_stacked": 0.5, "rune_pickups": 0.2,
+	"healing": 0.004, "mana_restored": 0.0, "tower_damage": 0.001, "camps_stacked": 0.5, "rune_pickups": 0.2,
 	"first_blood": 1.0, "hero_damage": 0.0, "damage_taken": 0.0,
-	"gold_spent_wards": 0.0, "gold_spent_smoke": 0.0, "gold_spent_dust": 0.0,
+	"gold_spent_wards": 0.0, "gold_spent_smoke": 0.0, "gold_spent_dust": 0.0, "gold_lost": 0.0,
 	"buff_duration": 0.0, "save_duration": 0.0, "purge_count": 0.0, "shield_duration": 0.0,
 	"buff_stats_duration": 0.0, "invisibility_duration": 0.0, "buff_haste_duration": 0.0,
 	"fear_duration": 0.0, "roots_duration": 0.0, "leash_duration": 0.0,
@@ -160,9 +164,9 @@ func stripComments(s string) string {
 	return b.String()
 }
 
-// Legacy token → current token. Removed tokens (deaths_base, gold_lost) are
-// neutralized to 0 so old saved formulas keep validating.
-var migrateRe = regexp.MustCompile(`\b(buffs_duration|deaths_base|save|purge_duration|purge|shield_uptime|gold_lost)\b`)
+// Legacy token → current token. Removed tokens (deaths_base) are neutralized
+// to 0 so old saved formulas keep validating.
+var migrateRe = regexp.MustCompile(`\b(buffs_duration|deaths_base|save|purge_duration|purge|shield_uptime)\b`)
 
 func migrate(s string) string {
 	return migrateRe.ReplaceAllStringFunc(s, func(w string) string {
