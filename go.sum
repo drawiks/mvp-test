@@ -6,8 +6,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dotabuff/manta v1.5.2 h1:v88rDjYaESrGiHCMmErSX6AAD0psYa5LzKgK161Ap2I=
 github.com/dotabuff/manta v1.5.2/go.mod h1:F0hQQaEr1HC61I1EJfe/mqXRRK4OOOH2VPrJ0CtULlI=
-github.com/drawiks/manta-cli v0.5.5 h1:kFXfc52XDeoc/RKGIPciYJmyc3U9O9/M/sP4ymdIzyw=
-github.com/drawiks/manta-cli v0.5.5/go.mod h1:OEvvToIiD5Wr/6La3h28ppTY7tgW1mseyEFmjq+jza8=
+github.com/drawiks/manta-cli v0.5.6 h1:9ub8kaEBg0sNnCyOB2EvfptA+GukrEelCDsoNEC+tA8=
+github.com/drawiks/manta-cli v0.5.6/go.mod h1:OEvvToIiD5Wr/6La3h28ppTY7tgW1mseyEFmjq+jza8=
 github.com/drawiks/odota-cli v0.2.1 h1:hl2J2QSoTdAN+GLP3me/hgHG4E4hrqp5LRaZubwbnsg=
 github.com/drawiks/odota-cli v0.2.1/go.mod h1:CvvYYVmByWL7B9B6WGJMSn0IW2ghnZHrtgYU7aowc/w=
 github.com/expr-lang/expr v1.17.8 h1:W1loDTT+0PQf5YteHSTpju2qfUfNoBt4yw9+wOEU9VM=
