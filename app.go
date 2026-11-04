@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"mvp/internal/formula"
 	"mvp/internal/model"
 	"mvp/internal/mvp"
 	"mvp/internal/parse"
+	"mvp/internal/updater"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -30,6 +32,10 @@ type App struct {
 	resultMu     sync.Mutex
 	parseCancel  context.CancelFunc
 	parseMu      sync.Mutex
+
+	updateMu      sync.Mutex
+	updateRelease *updater.Release
+	updating      bool
 }
 
 func NewApp() *App {
@@ -38,6 +44,7 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	updater.CleanupOld()
 	cfgDir, err := os.UserConfigDir()
 	if err != nil {
 		cfgDir = "."
@@ -131,6 +138,97 @@ func (a *App) ChooseReplay() {
 			Message: err.Error(),
 		})
 	}
+}
+
+func (a *App) GetAppVersion() string { return version }
+
+type UpdateInfo struct {
+	CurrentVersion string `json:"currentVersion"`
+	LatestVersion  string `json:"latestVersion"`
+	Available      bool   `json:"available"`
+	Notes          string `json:"notes"`
+}
+
+func (a *App) CheckForUpdates() (UpdateInfo, error) {
+	info := UpdateInfo{CurrentVersion: version}
+	if version == "dev" {
+		return info, nil
+	}
+	if a.ctx == nil {
+		return info, errors.New("приложение ещё не запущено")
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
+	defer cancel()
+	rel, ok, err := updater.Check(ctx, version)
+	if err != nil {
+		return info, err
+	}
+
+	a.updateMu.Lock()
+	defer a.updateMu.Unlock()
+	if !ok {
+		a.updateRelease = nil
+		return info, nil
+	}
+	info.LatestVersion = rel.Version
+	info.Available = true
+	info.Notes = rel.Notes
+	a.updateRelease = &rel
+	return info, nil
+}
+
+func (a *App) InstallUpdate() error {
+	a.updateMu.Lock()
+	rel := a.updateRelease
+	if rel == nil {
+		a.updateMu.Unlock()
+		return errors.New("обновление не найдено")
+	}
+	if a.updating {
+		a.updateMu.Unlock()
+		return errors.New("обновление уже загружается")
+	}
+	a.updating = true
+	a.updateMu.Unlock()
+
+	go func() {
+		defer func() {
+			a.updateMu.Lock()
+			a.updating = false
+			a.updateMu.Unlock()
+		}()
+
+		lastPercent := -1
+		progress := func(p updater.Progress) {
+			percent := 0
+			if p.Total > 0 {
+				percent = int(p.Downloaded * 100 / p.Total)
+			}
+			if p.Stage == "download" && p.Total > 0 && percent == lastPercent {
+				return
+			}
+			lastPercent = percent
+			runtime.EventsEmit(a.ctx, "updateProgress", map[string]any{
+				"stage": p.Stage, "downloaded": p.Downloaded, "total": p.Total, "percent": percent,
+			})
+		}
+
+		ctx, cancel := context.WithTimeout(a.ctx, 15*time.Minute)
+		defer cancel()
+		path, err := updater.Download(ctx, *rel, progress)
+		if err != nil {
+			runtime.EventsEmit(a.ctx, "updateDone", map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		runtime.EventsEmit(a.ctx, "updateProgress", map[string]any{"stage": "apply", "percent": 100})
+		if err := updater.ApplyAndRestart(path); err != nil {
+			runtime.EventsEmit(a.ctx, "updateDone", map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		runtime.EventsEmit(a.ctx, "updateDone", map[string]any{"ok": true})
+		runtime.Quit(a.ctx)
+	}()
+	return nil
 }
 
 func (a *App) GetParserURL() string { return a.parserURL }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FolderOpen, Loader2, Settings } from "lucide-react";
+import { Download, FolderOpen, Loader2, Settings } from "lucide-react";
 import * as Bindings from "../wailsjs/go/main/App";
 import type { formula, main } from "../wailsjs/go/models";
 import { onEvent, offEvent } from "@/lib/wails";
@@ -8,7 +8,9 @@ import HomePage from "@/pages/HomePage";
 import FormulasPage from "@/pages/FormulasPage";
 import VariablesPage from "@/pages/VariablesPage";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
@@ -31,24 +33,60 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
   const [page, setPage] = useState<"home" | "formulas" | "variables">("home");
+  const [appVersion, setAppVersion] = useState("");
+  const [update, setUpdate] = useState<main.UpdateInfo | null>(null);
+  const [showUpdate, setShowUpdate] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateChecked, setUpdateChecked] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<{ stage: string; percent: number } | null>(null);
+  const [updateError, setUpdateError] = useState("");
 
   const refreshPresets = async () => {
-    const [list, active, url, engine] = await Promise.all([
+    const [list, active, url, engine, ver] = await Promise.all([
       Bindings.ListPresets(),
       Bindings.ActivePresetID(),
       Bindings.GetParserURL(),
       Bindings.GetParserEngine(),
+      Bindings.GetAppVersion(),
     ]);
     setPresets(list);
     setActiveId(active);
     setParserURL(url);
     setParserEngine(engine);
+    setAppVersion(ver);
+  };
+
+  const checkForUpdates = async (manual = false) => {
+    setCheckingUpdate(true);
+    if (manual) setUpdateError("");
+    try {
+      const info = await Bindings.CheckForUpdates();
+      setAppVersion(info.currentVersion);
+      setUpdate(info.available ? info : null);
+      setUpdateChecked(true);
+    } catch (e) {
+      if (manual) setUpdateError(String(e));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const startUpdate = async () => {
+    setUpdateError("");
+    setUpdateProgress({ stage: "download", percent: 0 });
+    try {
+      await Bindings.InstallUpdate();
+    } catch (e) {
+      setUpdateError(String(e));
+      setUpdateProgress(null);
+    }
   };
 
   useEffect(() => {
     void (async () => {
       try {
         await refreshPresets();
+        void checkForUpdates();
       } finally {
         setLoading(false);
       }
@@ -68,11 +106,22 @@ export default function App() {
     onEvent("matchInfo", (payload: MatchInfo | null) => {
       setMatchInfo(payload ?? null);
     });
+    onEvent("updateProgress", (payload: { stage?: string; percent?: number } | null) => {
+      setUpdateProgress({ stage: payload?.stage ?? "download", percent: payload?.percent ?? 0 });
+    });
+    onEvent("updateDone", (payload: { ok?: boolean; error?: string } | null) => {
+      if (!payload?.ok) {
+        setUpdateError(payload?.error ?? "Не удалось обновить приложение");
+        setUpdateProgress(null);
+      }
+    });
     return () => {
       offEvent("parseStart");
       offEvent("parseDone");
       offEvent("resultUpdated");
       offEvent("matchInfo");
+      offEvent("updateProgress");
+      offEvent("updateDone");
     };
   }, []);
 
@@ -142,6 +191,11 @@ export default function App() {
             <span className={cn("size-1.5 rounded-full", statusDot)} />
             {statusLabel}
           </span>
+          {update?.available && (
+            <Button variant="outline" size="sm" onClick={() => setShowUpdate(true)} className="h-7">
+              <Download className="mr-1.5 size-3.5" /> Обновить v{update.latestVersion}
+            </Button>
+          )}
           {views && (
             <Button variant="outline" size="sm" onClick={() => void Bindings.ChooseReplay()} className="h-7">
               <FolderOpen className="mr-1.5 size-3.5" /> Открыть
@@ -154,32 +208,50 @@ export default function App() {
       </header>
 
       {showSettings && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-4 py-2">
-          <label className="text-xs text-muted-foreground">Движок:</label>
-          <Select value={parserEngine} onValueChange={setParserEngine}>
-            <SelectTrigger className="h-8 w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="odota">odota-cli (HTTP)</SelectItem>
-              <SelectItem value="manta">manta-cli (локально)</SelectItem>
-            </SelectContent>
-          </Select>
-          <label className="text-xs text-muted-foreground">URL парсера:</label>
-          <Input
-            value={parserURL}
-            onChange={(e) => setParserURL(e.target.value)}
-            disabled={parserEngine === "manta"}
-            className="h-8 w-80"
-            placeholder={parserEngine === "manta" ? "не используется" : "http://localhost:5600"}
-          />
-          <Button size="sm" onClick={() => void saveSettings()}>
-            Сохранить
-          </Button>
-          {parserEngine === "manta" && (
-            <span className="text-[11px] text-muted-foreground">.dem парсится локально, Docker не нужен</span>
-          )}
-        </div>
+        <>
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-4 py-2">
+            <label className="text-xs text-muted-foreground">Движок:</label>
+            <Select value={parserEngine} onValueChange={setParserEngine}>
+              <SelectTrigger className="h-8 w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="odota">odota-cli (HTTP)</SelectItem>
+                <SelectItem value="manta">manta-cli (локально)</SelectItem>
+              </SelectContent>
+            </Select>
+            <label className="text-xs text-muted-foreground">URL парсера:</label>
+            <Input
+              value={parserURL}
+              onChange={(e) => setParserURL(e.target.value)}
+              disabled={parserEngine === "manta"}
+              className="h-8 w-80"
+              placeholder={parserEngine === "manta" ? "не используется" : "http://localhost:5600"}
+            />
+            <Button size="sm" onClick={() => void saveSettings()}>
+              Сохранить
+            </Button>
+            {parserEngine === "manta" && (
+              <span className="text-[11px] text-muted-foreground">.dem парсится локально, Docker не нужен</span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-4 py-2">
+            <span className="text-xs text-muted-foreground">Версия:</span>
+            <span className="font-mono text-xs">{appVersion || "dev"}</span>
+            <Button variant="outline" size="sm" onClick={() => void checkForUpdates(true)} disabled={checkingUpdate}>
+              {checkingUpdate && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+              Проверить обновления
+            </Button>
+            {update?.available ? (
+              <Button size="sm" onClick={() => setShowUpdate(true)}>
+                Доступна v{update.latestVersion}
+              </Button>
+            ) : updateChecked ? (
+              <span className="text-[11px] text-muted-foreground">Обновлений нет</span>
+            ) : null}
+            {updateError && <span className="text-[11px] text-destructive">{updateError}</span>}
+          </div>
+        </>
       )}
 
       {loading ? (
@@ -213,6 +285,47 @@ export default function App() {
           </div>
         </main>
       )}
+      <Dialog open={showUpdate} onOpenChange={setShowUpdate}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Обновление v{update?.latestVersion || ""}</DialogTitle>
+            <DialogDescription>Текущая версия: {appVersion || "dev"}</DialogDescription>
+          </DialogHeader>
+          {update?.notes && (
+            <div className="max-h-56 overflow-auto rounded-md border border-border bg-muted/30 p-2 text-[11px] whitespace-pre-wrap text-muted-foreground">
+              {update.notes}
+            </div>
+          )}
+          {updateProgress && (
+            <div className="space-y-1">
+              <Progress value={updateProgress.percent} />
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>
+                  {updateProgress.stage === "download"
+                    ? "Скачивание…"
+                    : updateProgress.stage === "verify"
+                      ? "Проверка…"
+                      : "Установка…"}
+                </span>
+                <span>{updateProgress.percent}%</span>
+              </div>
+            </div>
+          )}
+          {updateError && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-left text-sm text-destructive">
+              {updateError}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUpdate(false)} disabled={!!updateProgress}>
+              Позже
+            </Button>
+            <Button onClick={() => void startUpdate()} disabled={!!updateProgress}>
+              {updateProgress ? "Обновление…" : "Обновить и перезапустить"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Toaster position="bottom-right" />
     </div>
   );

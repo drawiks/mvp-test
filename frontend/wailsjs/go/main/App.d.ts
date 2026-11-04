@@ -7,6 +7,8 @@ export function ActivePresetID():Promise<string>;
 
 export function CancelParse():Promise<void>;
 
+export function CheckForUpdates():Promise<main.UpdateInfo>;
+
 export function ChooseReplay():Promise<void>;
 
 export function CurrentPreset():Promise<formula.Preset>;
@@ -25,6 +27,8 @@ export function ExportPresetDialog(arg1:string):Promise<boolean>;
 
 export function ExportVariableDialog(arg1:string):Promise<boolean>;
 
+export function GetAppVersion():Promise<string>;
+
 export function GetParserEngine():Promise<string>;
 
 export function GetParserURL():Promise<string>;
@@ -36,6 +40,8 @@ export function ImportPreset(arg1:string):Promise<formula.Preset>;
 export function ImportPresetDialog():Promise<formula.Preset|boolean>;
 
 export function ImportVariableDialog():Promise<formula.Variable|boolean>;
+
+export function InstallUpdate():Promise<void>;
 
 export function ListPresets():Promise<Array<formula.Preset>>;
 

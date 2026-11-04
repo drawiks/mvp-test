@@ -93,6 +93,23 @@ func TestAppParserURLRoundtrip(t *testing.T) {
 	_ = a
 }
 
+func TestUpdateMethodsWhenDev(t *testing.T) {
+	a := &App{}
+	if a.GetAppVersion() != version {
+		t.Fatalf("version %q", a.GetAppVersion())
+	}
+	info, err := a.CheckForUpdates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.CurrentVersion != version || info.Available {
+		t.Fatalf("info %+v", info)
+	}
+	if err := a.InstallUpdate(); err == nil {
+		t.Fatal("want error without a checked release")
+	}
+}
+
 func TestSetParserEngine(t *testing.T) {
 	a := &App{configPath: filepath.Join(t.TempDir(), "config.json"), parserURL: parserURLDefault}
 	if err := a.SetParserEngine("bogus"); err == nil {

@@ -10,6 +10,10 @@ export function CancelParse() {
   return window['go']['main']['App']['CancelParse']();
 }
 
+export function CheckForUpdates() {
+  return window['go']['main']['App']['CheckForUpdates']();
+}
+
 export function ChooseReplay() {
   return window['go']['main']['App']['ChooseReplay']();
 }
@@ -46,6 +50,10 @@ export function ExportVariableDialog(arg1) {
   return window['go']['main']['App']['ExportVariableDialog'](arg1);
 }
 
+export function GetAppVersion() {
+  return window['go']['main']['App']['GetAppVersion']();
+}
+
 export function GetParserEngine() {
   return window['go']['main']['App']['GetParserEngine']();
 }
@@ -68,6 +76,10 @@ export function ImportPresetDialog() {
 
 export function ImportVariableDialog() {
   return window['go']['main']['App']['ImportVariableDialog']();
+}
+
+export function InstallUpdate() {
+  return window['go']['main']['App']['InstallUpdate']();
 }
 
 export function ListPresets() {

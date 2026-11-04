@@ -1,13 +1,13 @@
 export namespace formula {
-	
+
 	export class BreakdownRow {
 	    label: string;
 	    value: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new BreakdownRow(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.label = source["label"];
@@ -20,11 +20,11 @@ export namespace formula {
 	    kind: string;
 	    weights: Record<string, number>;
 	    expression: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Preset(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -38,11 +38,11 @@ export namespace formula {
 	    id: string;
 	    name: string;
 	    expression: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new Variable(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -54,7 +54,26 @@ export namespace formula {
 }
 
 export namespace main {
-	
+
+	export class UpdateInfo {
+	    currentVersion: string;
+	    latestVersion: string;
+	    available: boolean;
+	    notes: string;
+
+	    static createFrom(source: any = {}) {
+	        return new UpdateInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currentVersion = source["currentVersion"];
+	        this.latestVersion = source["latestVersion"];
+	        this.available = source["available"];
+	        this.notes = source["notes"];
+	    }
+	}
+
 	export class PlayerView {
 	    SteamID: number;
 	    PlayerID: number;
@@ -114,11 +133,11 @@ export namespace main {
 	    IsWinner: boolean;
 	    MvpRole: string;
 	    Stats: Record<string, number>;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new PlayerView(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.SteamID = source["SteamID"];

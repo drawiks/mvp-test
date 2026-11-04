@@ -14,6 +14,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version is stamped at release build time via -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
 	app := NewApp()
 
