@@ -55,35 +55,7 @@ type streamChunk struct {
 	} `json:"choices"`
 }
 
-func extractErrorBody(raw []byte) string {
-	trimmed := strings.TrimSpace(string(raw))
-	var obj struct {
-		Error json.RawMessage `json:"error"`
-	}
-	if json.Unmarshal(raw, &obj) == nil && len(obj.Error) > 0 {
-		var msg struct {
-			Message string `json:"message"`
-		}
-		if json.Unmarshal(obj.Error, &msg) == nil && msg.Message != "" {
-			return msg.Message
-		}
-		var text string
-		if json.Unmarshal(obj.Error, &text) == nil && text != "" {
-			return text
-		}
-	}
-	var arr []struct {
-		Error struct {
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if json.Unmarshal(raw, &arr) == nil && len(arr) > 0 && arr[0].Error.Message != "" {
-		return arr[0].Error.Message
-	}
-	return trimmed
-}
-
-func streamChat(ctx context.Context, settings Settings, apiKey string, messages []Message, tools []Tool, emit func(Event)) (Message, *RateLimit, error) {
+func streamChat(ctx context.Context, settings Settings, apiKey string, messages []Message, tools []Tool, emit func(Event)) (Message, error) {
 	defs := make([]toolDefinition, 0, len(tools))
 	for _, t := range tools {
 		defs = append(defs, toolDefinition{
@@ -94,50 +66,37 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		})
 	}
 
-	toolChoice := "auto"
-	if IsLocal(settings.Provider) {
-		toolChoice = ""
-	}
 	body, err := json.Marshal(chatRequest{
 		Model:       settings.Model,
 		Messages:    messages,
 		Tools:       defs,
-		ToolChoice:  toolChoice,
+		ToolChoice:  "auto",
 		Temperature: settings.Temperature,
 		MaxTokens:   1024,
 		Stream:      true,
 	})
 	if err != nil {
-		return Message{}, nil, err
+		return Message{}, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, Endpoint(settings)+"/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleBaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return Message{}, nil, err
+		return Message{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if strings.TrimSpace(apiKey) != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	req.Header.Set("User-Agent", "mvp-test-assistant")
-	if settings.Provider == ProviderOpenRouter {
-		req.Header.Set("HTTP-Referer", "https://github.com/drawiks/mvp-test")
-		req.Header.Set("X-Title", "MVP-Test")
-	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return Message{}, nil, err
+		return Message{}, err
 	}
 	defer resp.Body.Close()
-	rate := parseRate(resp.Header, settings.Provider)
-	if rate != nil && emit != nil {
-		emit(Event{Type: "rate", Rate: rate})
-	}
 	if resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		body := extractErrorBody(raw)
-		return Message{}, rate, &APIError{Status: resp.StatusCode, Body: body, RetryAfter: resp.Header.Get("Retry-After"), Rate: rate}
+		return Message{}, &APIError{Status: resp.StatusCode, Body: extractErrorBody(raw), RetryAfter: resp.Header.Get("Retry-After")}
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -164,7 +123,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 			if status == 0 {
 				status = http.StatusBadGateway
 			}
-			return Message{}, rate, &APIError{Status: status, Body: chunk.Error.Message, Rate: rate}
+			return Message{}, &APIError{Status: status, Body: chunk.Error.Message}
 		}
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
@@ -218,7 +177,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return Message{}, rate, err
+		return Message{}, err
 	}
 
 	indexes := make([]int, 0, len(calls))
@@ -238,7 +197,35 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		toolCalls = append(toolCalls, call)
 	}
 	if content.Len() == 0 && len(toolCalls) == 0 {
-		return Message{}, rate, fmt.Errorf("ассистент вернул пустой ответ")
+		return Message{}, fmt.Errorf("ассистент вернул пустой ответ")
 	}
-	return Message{Role: "assistant", Content: content.String(), ToolCalls: toolCalls}, rate, nil
+	return Message{Role: "assistant", Content: content.String(), ToolCalls: toolCalls}, nil
+}
+
+func extractErrorBody(raw []byte) string {
+	trimmed := strings.TrimSpace(string(raw))
+	var obj struct {
+		Error json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal(raw, &obj) == nil && len(obj.Error) > 0 {
+		var msg struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(obj.Error, &msg) == nil && msg.Message != "" {
+			return msg.Message
+		}
+		var text string
+		if json.Unmarshal(obj.Error, &text) == nil && text != "" {
+			return text
+		}
+	}
+	var arr []struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(raw, &arr) == nil && len(arr) > 0 && arr[0].Error.Message != "" {
+		return arr[0].Error.Message
+	}
+	return trimmed
 }

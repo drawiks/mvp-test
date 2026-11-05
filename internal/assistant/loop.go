@@ -19,6 +19,12 @@ const systemPrompt = `Ты — ассистент по разработке MVP-
 8. Не вызывай explain_player для всех игроков. Для обзора используй preview_formula, а детально разбирай 1–2 ключевых игроков.
 9. Не повторяй get_match_context и другие тяжёлые вызовы без необходимости.`
 
+const (
+	maxKeyRetries        = 3
+	maxToolCallsPerRound = 6
+	maxToolResultChars   = 4000
+)
+
 type KeyRotator interface {
 	Key() string
 	Rotate(err error) (string, bool)
@@ -36,29 +42,19 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 }
 
 // RunWithRotator executes an assistant turn and can switch keys between tool
-// rounds when the provider reports quota or credential errors.
+// rounds when Gemini reports quota or credential errors.
 func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, history *[]Message, tools []Tool, emit func(Event)) error {
-	if rotator == nil || (strings.TrimSpace(rotator.Key()) == "" && !IsLocal(settings.Provider)) {
-		return fmt.Errorf("не задан API-ключ для %s", ProviderName(settings.Provider))
+	if rotator == nil || strings.TrimSpace(rotator.Key()) == "" {
+		return fmt.Errorf("не задан Google API-ключ")
 	}
 	rounds := settings.MaxToolRounds
 	if rounds <= 0 {
 		rounds = 6
 	}
 
-	const (
-		maxToolCallsPerRound = 6
-		maxToolResultChars   = 6000
-	)
-
 	byName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
 		byName[tool.Name] = tool
-	}
-	limiter := newRateLimiter(settings.Provider)
-	toolResultLimit := maxToolResultChars
-	if settings.Provider == ProviderGroq {
-		toolResultLimit = 3000
 	}
 
 	for round := 0; round <= rounds; round++ {
@@ -66,16 +62,11 @@ func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, 
 		messages = append(messages, Message{Role: "system", Content: systemPrompt})
 		messages = append(messages, *history...)
 
-		estimated := estimateRequestTokens(messages, tools, 1024)
 		var (
 			answer Message
-			rate   *RateLimit
 			err    error
 		)
 		for attempt := 0; ; attempt++ {
-			if err = limiter.Wait(ctx, estimated, emit); err != nil {
-				return err
-			}
 			emitted := false
 			wrapped := func(e Event) {
 				if e.Type == "delta" {
@@ -85,32 +76,24 @@ func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, 
 					emit(e)
 				}
 			}
-			key := rotator.Key()
-			answer, rate, err = streamChat(ctx, settings, key, messages, tools, wrapped)
-			limiter.Update(rate)
+			answer, err = streamChat(ctx, settings, rotator.Key(), messages, tools, wrapped)
 			if err == nil {
 				break
 			}
-			if !emitted && attempt < maxRateRetries-1 {
+			if !emitted && attempt < maxKeyRetries-1 {
 				if _, ok := rotator.Rotate(err); ok {
 					continue
 				}
 			}
-			delay, retry := limiter.RetryDelay(err, rate, emitted)
-			if !retry || attempt >= maxRateRetries-1 {
-				return err
-			}
-			if werr := limiter.WaitForRetry(ctx, delay, emit); werr != nil {
-				return werr
-			}
+			return err
 		}
 		*history = append(*history, answer)
 		if len(answer.ToolCalls) == 0 {
 			return nil
 		}
 
-		for callIndex, call := range answer.ToolCalls {
-			if callIndex >= maxToolCallsPerRound {
+		for i, call := range answer.ToolCalls {
+			if i >= maxToolCallsPerRound {
 				result := `{"error":"слишком много вызовов инструментов за один шаг; используй preview_formula и точечные get_player/explain_player"}`
 				if emit != nil {
 					emit(Event{Type: "toolResult", ToolName: call.Function.Name, ToolResult: result})
@@ -133,12 +116,10 @@ func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, 
 					args = map[string]any{}
 				}
 			}
-			var value any
-			var runErr error
 			if args == nil {
 				args = map[string]any{}
 			}
-			value, runErr = tool.Run(ctx, args)
+			value, runErr := tool.Run(ctx, args)
 			var result string
 			if runErr != nil {
 				raw, _ := json.Marshal(map[string]string{"error": runErr.Error()})
@@ -150,7 +131,7 @@ func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, 
 				}
 				result = string(raw)
 			}
-			if len(result) > toolResultLimit {
+			if len(result) > maxToolResultChars {
 				result = `{"error":"результат инструмента слишком большой; уточните запрос или используйте более точечный инструмент"}`
 			}
 			if emit != nil {
@@ -160,23 +141,6 @@ func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, 
 		}
 	}
 	return fmt.Errorf("ассистент превысил лимит шагов инструментов (%d)", rounds)
-}
-
-func estimateRequestTokens(messages []Message, tools []Tool, maxTokens int) int {
-	chars := 0
-	for _, m := range messages {
-		chars += len(m.Content) + len(m.Name)
-		for _, call := range m.ToolCalls {
-			chars += len(call.Function.Name) + len(call.Function.Arguments)
-		}
-	}
-	for _, tool := range tools {
-		chars += len(tool.Name) + len(tool.Description)
-		if raw, err := json.Marshal(tool.Parameters); err == nil {
-			chars += len(raw)
-		}
-	}
-	return int(float64(chars)/3*1.15) + maxTokens
 }
 
 func truncate(s string, n int) string {
@@ -189,6 +153,6 @@ func truncate(s string, n int) string {
 // Ping performs a minimal chat request to validate credentials and model access.
 func Ping(ctx context.Context, settings Settings, apiKey string) error {
 	history := []Message{{Role: "user", Content: "Ответь одним словом: ok"}}
-	_, _, err := streamChat(ctx, settings, apiKey, history, nil, nil)
+	_, err := streamChat(ctx, settings, apiKey, history, nil, nil)
 	return err
 }

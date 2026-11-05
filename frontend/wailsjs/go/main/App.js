@@ -26,10 +26,6 @@ export function ClearAssistantHistory() {
   return window['go']['main']['App']['ClearAssistantHistory']();
 }
 
-export function ClearAssistantKey(arg1) {
-  return window['go']['main']['App']['ClearAssistantKey'](arg1);
-}
-
 export function CurrentPreset() {
   return window['go']['main']['App']['CurrentPreset']();
 }
@@ -82,10 +78,6 @@ export function GetGoogleKeys() {
   return window['go']['main']['App']['GetGoogleKeys']();
 }
 
-export function GetAssistantLimits() {
-  return window['go']['main']['App']['GetAssistantLimits']();
-}
-
 export function GetAssistantSettings() {
   return window['go']['main']['App']['GetAssistantSettings']();
 }
@@ -118,8 +110,8 @@ export function InstallUpdate() {
   return window['go']['main']['App']['InstallUpdate']();
 }
 
-export function ListAssistantModels(arg1, arg2, arg3) {
-  return window['go']['main']['App']['ListAssistantModels'](arg1, arg2, arg3);
+export function ListAssistantModels(arg1) {
+  return window['go']['main']['App']['ListAssistantModels'](arg1);
 }
 
 export function ListPresets() {
@@ -146,8 +138,8 @@ export function RemoveVariable(arg1) {
   return window['go']['main']['App']['RemoveVariable'](arg1);
 }
 
-export function SaveAssistantSettings(arg1, arg2, arg3) {
-  return window['go']['main']['App']['SaveAssistantSettings'](arg1, arg2, arg3);
+export function SaveAssistantSettings(arg1) {
+  return window['go']['main']['App']['SaveAssistantSettings'](arg1);
 }
 
 export function SendAssistantMessage(arg1) {

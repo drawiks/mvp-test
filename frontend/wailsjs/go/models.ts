@@ -101,42 +101,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class AssistantLimits {
-	    provider: string;
-	    requestsLimit: number;
-	    requestsRemaining: number;
-	    requestsReset: string;
-	    tokensLimit: number;
-	    tokensRemaining: number;
-	    tokensReset: string;
-	    freeRequestsLimit: number;
-	    freeRequestsRemaining: number;
-	    freeRequestsReset: string;
-	    creditsRemaining?: number;
-	    retryAfter: string;
-	    receivedAt: string;
-
-	    static createFrom(source: any = {}) {
-	        return new AssistantLimits(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.provider = source["provider"];
-	        this.requestsLimit = source["requestsLimit"];
-	        this.requestsRemaining = source["requestsRemaining"];
-	        this.requestsReset = source["requestsReset"];
-	        this.tokensLimit = source["tokensLimit"];
-	        this.tokensRemaining = source["tokensRemaining"];
-	        this.tokensReset = source["tokensReset"];
-	        this.freeRequestsLimit = source["freeRequestsLimit"];
-	        this.freeRequestsRemaining = source["freeRequestsRemaining"];
-	        this.freeRequestsReset = source["freeRequestsReset"];
-	        this.creditsRemaining = source["creditsRemaining"];
-	        this.retryAfter = source["retryAfter"];
-	        this.receivedAt = source["receivedAt"];
-	    }
-	}
 	export class FormulaDiff {
 	    current: string;
 	    proposed: string;
@@ -180,12 +144,7 @@ export namespace main {
 	export class AssistantModel {
 	    id: string;
 	    name: string;
-	    provider: string;
 	    contextLength: number;
-	    supportsTools: boolean;
-	    free: boolean;
-	    local: boolean;
-	    privacy: string;
 
 	    static createFrom(source: any = {}) {
 	        return new AssistantModel(source);
@@ -195,12 +154,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.provider = source["provider"];
 	        this.contextLength = source["contextLength"];
-	        this.supportsTools = source["supportsTools"];
-	        this.free = source["free"];
-	        this.local = source["local"];
-	        this.privacy = source["privacy"];
 	    }
 	}
 	export class AssistantProposal {
@@ -220,15 +174,10 @@ export namespace main {
 	    }
 	}
 	export class AssistantSettings {
-	    provider: string;
 	    model: string;
 	    temperature: number;
 	    maxToolRounds: number;
 	    sendPlayerNames: boolean;
-	    ollamaUrl: string;
-	    llamaCppUrl: string;
-	    hasGroqKey: boolean;
-	    hasOpenRouterKey: boolean;
 	    googleKeyCount: number;
 	    googleActiveKey: number;
 
@@ -238,15 +187,10 @@ export namespace main {
 
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.provider = source["provider"];
 	        this.model = source["model"];
 	        this.temperature = source["temperature"];
 	        this.maxToolRounds = source["maxToolRounds"];
 	        this.sendPlayerNames = source["sendPlayerNames"];
-	        this.ollamaUrl = source["ollamaUrl"];
-	        this.llamaCppUrl = source["llamaCppUrl"];
-	        this.hasGroqKey = source["hasGroqKey"];
-	        this.hasOpenRouterKey = source["hasOpenRouterKey"];
 	        this.googleKeyCount = source["googleKeyCount"];
 	        this.googleActiveKey = source["googleActiveKey"];
 	    }

@@ -14,48 +14,11 @@ import { cn } from "@/lib/utils";
 type ToolEvent = { name: string; args?: string; result?: string };
 type ChatMessage = { role: "user" | "assistant"; text: string; tools: ToolEvent[] };
 
-const DEFAULT_MODEL: Record<string, string> = {
-  groq: "qwen/qwen3.8-27b",
-  openrouter: "nvidia/nemotron-3-ultra-550b-a55b:free",
-  ollama: "",
-  llamacpp: "",
-  google: "",
-};
-
-const DEFAULT_URL: Record<string, string> = {
-  ollama: "http://127.0.0.1:11434/v1",
-  llamacpp: "http://127.0.0.1:9931/v1",
-};
-
-const PROVIDER_LABEL: Record<string, string> = {
-  groq: "GroqCloud",
-  openrouter: "OpenRouter",
-  ollama: "Ollama",
-  llamacpp: "llama.cpp",
-  google: "Google AI Studio",
-};
-
-function localURL(settings: main.AssistantSettings | null, provider: string): string {
-  if (!settings) return DEFAULT_URL[provider] ?? "";
-  return provider === "ollama" ? settings.ollamaUrl || DEFAULT_URL.ollama : settings.llamaCppUrl || DEFAULT_URL.llamacpp;
-}
-
 type Props = {
   onChange: () => Promise<void> | void;
   onOpenFormulas: () => void;
   onApplyToEditor: (p: main.AssistantProposal) => void;
 };
-
-function limitsLabel(l: main.AssistantLimits | null, provider: string): string {
-  if (!l || l.provider !== provider) return "";
-  if (provider === "openrouter" && l.freeRequestsLimit > 0) {
-    return `${l.freeRequestsLimit - l.freeRequestsRemaining}/${l.freeRequestsLimit} free`;
-  }
-  const parts: string[] = [];
-  if (l.requestsLimit > 0) parts.push(`${Math.min(l.requestsRemaining, l.requestsLimit)}/${l.requestsLimit} RPD`);
-  if (l.tokensLimit > 0) parts.push(`${Math.round(Math.min(l.tokensRemaining, l.tokensLimit) / 1000)}k/${Math.round(l.tokensLimit / 1000)}k TPM`);
-  return parts.join(" · ");
-}
 
 export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEditor }: Props) {
   const [settings, setSettings] = useState<main.AssistantSettings | null>(null);
@@ -68,18 +31,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   const [errorDetail, setErrorDetail] = useState("");
   const [proposal, setProposal] = useState<main.AssistantProposal | null>(null);
   const [diff, setDiff] = useState<main.FormulaDiff | null>(null);
-  const [limits, setLimits] = useState<main.AssistantLimits | null>(null);
-  const [waitInfo, setWaitInfo] = useState<{ until: number; seconds: number; reason: string } | null>(null);
-  const [waitNow, setWaitNow] = useState(Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  const refreshLimits = async () => {
-    try {
-      setLimits(await Bindings.GetAssistantLimits());
-    } catch {
-      // Limits are advisory; ignore transient failures.
-    }
-  };
 
   const showProposal = async (p: main.AssistantProposal) => {
     setProposal(p);
@@ -91,15 +43,15 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     }
   };
 
-  const reloadModels = async (provider: string, baseURL = "", refresh = false) => {
+  const reloadModels = async (refresh = false) => {
     setLoadingModels(true);
     try {
-      const list = await Bindings.ListAssistantModels(provider, baseURL, refresh);
+      const list = await Bindings.ListAssistantModels(refresh);
       setModels(list);
       setSettings((s) => {
         if (!s) return s;
         if (list.some((m) => m.id === s.model)) return s;
-        return { ...s, model: DEFAULT_MODEL[provider] ?? list[0]?.id ?? s.model };
+        return { ...s, model: list[0]?.id ?? s.model };
       });
     } catch (e) {
       setError(String(e));
@@ -108,11 +60,10 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     }
   };
 
-  const persist = async (next: main.AssistantSettings, keys?: { groq?: string; openrouter?: string }) => {
-    await Bindings.SaveAssistantSettings(next, keys?.groq ?? "", keys?.openrouter ?? "");
+  const persist = async (next: main.AssistantSettings) => {
+    await Bindings.SaveAssistantSettings(next);
     const fresh = await Bindings.GetAssistantSettings();
     setSettings(fresh);
-    return fresh;
   };
 
   useEffect(() => {
@@ -120,8 +71,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       try {
         const s = await Bindings.GetAssistantSettings();
         setSettings(s);
-        await reloadModels(s.provider, localURL(s, s.provider));
-        await refreshLimits();
+        await reloadModels();
         const history = await Bindings.GetAssistantHistory();
         setMessages(
           (history.messages ?? []).map((m) => ({
@@ -136,14 +86,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       }
     })();
 
-    onEvent("assistantWait", (payload: { seconds?: number; until?: number; reason?: string } | null) => {
-      const seconds = payload?.seconds ?? 0;
-      const until = payload?.until ?? Date.now() + seconds * 1000;
-      setWaitNow(Date.now());
-      setWaitInfo({ until, seconds, reason: payload?.reason ?? "" });
-    });
     onEvent("assistantDelta", (payload: { text?: string } | null) => {
-      setWaitInfo(null);
       const text = payload?.text ?? "";
       if (!text) return;
       setMessages((prev) => {
@@ -187,17 +130,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     onEvent("assistantProposal", (payload: main.AssistantProposal | null) => {
       if (payload) void showProposal(payload);
     });
-    onEvent("assistantLimits", (payload: main.AssistantLimits | null) => {
-      if (payload) setLimits(payload);
-    });
     onEvent("assistantDone", (payload: { ok?: boolean; error?: string; detail?: string } | null) => {
       setStreaming(false);
-      setWaitInfo(null);
       if (!payload?.ok) {
         setError(payload?.error ?? "Ошибка ассистента");
         setErrorDetail(payload?.detail ?? "");
       }
-      void refreshLimits();
       void Bindings.GetAssistantSettings().then(setSettings).catch(() => {});
     });
     return () => {
@@ -205,8 +143,6 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       offEvent("assistantTool");
       offEvent("assistantToolResult");
       offEvent("assistantProposal");
-      offEvent("assistantLimits");
-      offEvent("assistantWait");
       offEvent("assistantDone");
     };
   }, []);
@@ -214,34 +150,6 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streaming]);
-
-  useEffect(() => {
-    if (!waitInfo) return;
-    setWaitNow(Date.now());
-    const id = setInterval(() => setWaitNow(Date.now()), 250);
-    return () => clearInterval(id);
-  }, [waitInfo]);
-
-  const changeProvider = async (provider: string) => {
-    if (!settings) return;
-    const baseURL = provider === "ollama" ? settings.ollamaUrl : provider === "llamacpp" ? settings.llamaCppUrl : "";
-    const list = await Bindings.ListAssistantModels(provider, baseURL, false).catch(() => [] as main.AssistantModel[]);
-    setModels(list);
-    const model = DEFAULT_MODEL[provider] || list[0]?.id || "";
-    const next = { ...settings, provider, model };
-    setSettings(next);
-    setError("");
-    if (!model) {
-      setError("Модели не найдены. Проверьте URL и запустите локальный сервер.");
-      return;
-    }
-    try {
-      await persist(next);
-      await refreshLimits();
-    } catch (e) {
-      setError(String(e));
-    }
-  };
 
   const changeModel = async (model: string) => {
     if (!settings) return;
@@ -270,7 +178,6 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     setDiff(null);
     setMessages((prev) => [...prev, { role: "user", text, tools: [] }]);
     setStreaming(true);
-    setWaitInfo(null);
     try {
       await Bindings.SendAssistantMessage(text);
     } catch (e) {
@@ -307,18 +214,10 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   };
 
   const currentModel = models.find((m) => m.id === settings?.model);
-  const isLocal = settings?.provider === "ollama" || settings?.provider === "llamacpp";
-  const providerLabel = PROVIDER_LABEL[settings?.provider ?? ""] ?? "Ассистент";
-  const limitText = isLocal ? "" : limitsLabel(limits, settings?.provider ?? "");
-  const googleKeyText =
-    settings?.provider === "google" && settings.googleKeyCount > 0
+  const keyText =
+    settings && settings.googleKeyCount > 0
       ? `ключ ${settings.googleActiveKey}/${settings.googleKeyCount}`
-      : "";
-  const limitLow =
-    !isLocal &&
-    limits &&
-    ((limits.requestsLimit > 0 && limits.requestsRemaining <= limits.requestsLimit * 0.1) ||
-      (limits.freeRequestsLimit > 0 && limits.freeRequestsRemaining <= limits.freeRequestsLimit * 0.1));
+      : "нет ключей";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
@@ -329,17 +228,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
           </h2>
           {settings && (
             <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
-              <Badge variant="outline">{providerLabel}</Badge>
+              <Badge variant="outline">Google AI Studio</Badge>
               <span className="max-w-56 truncate font-mono text-muted-foreground" title={settings.model}>
                 {currentModel?.name ?? settings.model}
               </span>
-              <Badge variant={isLocal ? "outline" : "gold"} className="text-[9px]">{isLocal ? "LOCAL" : "FREE"}</Badge>
-              {googleKeyText && <span className="font-mono text-muted-foreground">{googleKeyText}</span>}
-              {limitText && (
-                <span className={cn("font-mono tabular-nums", limitLow ? "text-destructive" : "text-muted-foreground")}>
-                  {limitText}
-                </span>
-              )}
+              <Badge variant="gold" className="text-[9px]">FREE</Badge>
+              <span className="font-mono text-muted-foreground">{keyText}</span>
             </div>
           )}
         </div>
@@ -356,22 +250,9 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       </div>
 
       {settings && (
-        <div className="grid items-end gap-2 rounded-lg border border-border bg-card/40 p-3 md:grid-cols-[200px_minmax(0,1fr)_auto]">
+        <div className="grid items-end gap-2 rounded-lg border border-border bg-card/40 p-3 md:grid-cols-[minmax(0,1fr)_auto]">
           <div className="space-y-1">
-            <label className="label-caps">Провайдер</label>
-            <Select value={settings.provider} onValueChange={(v) => void changeProvider(v)}>
-              <SelectTrigger className="h-8 w-52"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="groq">GroqCloud</SelectItem>
-                <SelectItem value="openrouter">OpenRouter</SelectItem>
-                <SelectItem value="ollama">Ollama (локально)</SelectItem>
-                <SelectItem value="llamacpp">llama.cpp (локально)</SelectItem>
-                <SelectItem value="google">Google AI Studio</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="min-w-72 flex-1 space-y-1">
-            <label className="label-caps">{isLocal ? "Локальная модель" : "Бесплатная модель"}</label>
+            <label className="label-caps">Модель Gemini</label>
             <Select value={settings.model} onValueChange={(v) => void changeModel(v)}>
               <SelectTrigger className="h-8 w-full">
                 <SelectValue placeholder="Выберите модель" />
@@ -392,19 +273,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
             variant="outline"
             size="sm"
             className="h-8"
-            onClick={() => void reloadModels(settings.provider, localURL(settings, settings.provider), true)}
+            onClick={() => void reloadModels(true)}
             disabled={loadingModels}
             title="Обновить список моделей"
           >
             <RefreshCw className={cn("size-3.5", loadingModels && "animate-spin")} />
           </Button>
-        </div>
-      )}
-      {waitInfo && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-sm text-amber-200">
-          {Math.max(0, Math.ceil((waitInfo.until - waitNow) / 1000)) > 0
-            ? `Лимит Groq: ждём ${Math.max(0, Math.ceil((waitInfo.until - waitNow) / 1000))} с… ${waitInfo.reason === "tokens" ? "(токены)" : "(запросы)"}`
-            : "Лимит Groq: продолжаем…"}
         </div>
       )}
 

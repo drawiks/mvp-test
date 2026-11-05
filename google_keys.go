@@ -137,7 +137,7 @@ func (a *App) TestGoogleKeys() error {
 	okCount := 0
 	for i, key := range keys {
 		ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
-		_, err := assistant.ListModels(ctx, assistant.ProviderGoogle, key, "", true)
+		_, err := assistant.ListModels(ctx, key, true)
 		cancel()
 		a.googleMu.Lock()
 		st := a.googleKeyState(i)

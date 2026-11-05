@@ -15,8 +15,6 @@ export function ChooseReplay():Promise<void>;
 
 export function ClearAssistantHistory():Promise<void>;
 
-export function ClearAssistantKey(arg1:string):Promise<void>;
-
 export function CurrentPreset():Promise<formula.Preset>;
 
 export function EmitResult():Promise<void>;
@@ -43,8 +41,6 @@ export function GetAssistantHistory():Promise<main.AssistantHistoryState>;
 
 export function GetGoogleKeys():Promise<Array<main.GoogleKeyInfo>>;
 
-export function GetAssistantLimits():Promise<main.AssistantLimits>;
-
 export function GetAssistantSettings():Promise<main.AssistantSettings>;
 
 export function GetParserEngine():Promise<string>;
@@ -61,7 +57,7 @@ export function ImportVariableDialog():Promise<formula.Variable|boolean>;
 
 export function InstallUpdate():Promise<void>;
 
-export function ListAssistantModels(arg1:string,arg2:string,arg3:boolean):Promise<Array<main.AssistantModel>>;
+export function ListAssistantModels(arg1:boolean):Promise<Array<main.AssistantModel>>;
 
 export function ListPresets():Promise<Array<formula.Preset>>;
 
@@ -75,7 +71,7 @@ export function RemovePreset(arg1:string):Promise<boolean>;
 
 export function RemoveVariable(arg1:string):Promise<void>;
 
-export function SaveAssistantSettings(arg1:main.AssistantSettings,arg2:string,arg3:string):Promise<void>;
+export function SaveAssistantSettings(arg1:main.AssistantSettings):Promise<void>;
 
 export function SendAssistantMessage(arg1:string):Promise<void>;
 

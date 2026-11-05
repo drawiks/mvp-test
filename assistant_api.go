@@ -12,29 +12,21 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+const assistantHistoryBudgetChars = 12000
+
 type AssistantSettings struct {
-	Provider         string  `json:"provider"`
-	Model            string  `json:"model"`
-	Temperature      float64 `json:"temperature"`
-	MaxToolRounds    int     `json:"maxToolRounds"`
-	SendPlayerNames  bool    `json:"sendPlayerNames"`
-	OllamaURL        string  `json:"ollamaUrl"`
-	LlamaCppURL      string  `json:"llamaCppUrl"`
-	HasGroqKey       bool    `json:"hasGroqKey"`
-	HasOpenRouterKey bool    `json:"hasOpenRouterKey"`
-	GoogleKeyCount   int     `json:"googleKeyCount"`
-	GoogleActiveKey  int     `json:"googleActiveKey"`
+	Model           string  `json:"model"`
+	Temperature     float64 `json:"temperature"`
+	MaxToolRounds   int     `json:"maxToolRounds"`
+	SendPlayerNames bool    `json:"sendPlayerNames"`
+	GoogleKeyCount  int     `json:"googleKeyCount"`
+	GoogleActiveKey int     `json:"googleActiveKey"`
 }
 
 type AssistantModel struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`
-	Provider      string `json:"provider"`
 	ContextLength int    `json:"contextLength"`
-	SupportsTools bool   `json:"supportsTools"`
-	Free          bool   `json:"free"`
-	Local         bool   `json:"local"`
-	Privacy       string `json:"privacy,omitempty"`
 }
 
 type AssistantProposal struct {
@@ -43,100 +35,18 @@ type AssistantProposal struct {
 	Expression  string `json:"expression"`
 }
 
-type AssistantLimits struct {
-	Provider              string    `json:"provider"`
-	RequestsLimit         int       `json:"requestsLimit"`
-	RequestsRemaining     int       `json:"requestsRemaining"`
-	RequestsReset         string    `json:"requestsReset"`
-	TokensLimit           int       `json:"tokensLimit"`
-	TokensRemaining       int       `json:"tokensRemaining"`
-	TokensReset           string    `json:"tokensReset"`
-	FreeRequestsLimit     int       `json:"freeRequestsLimit"`
-	FreeRequestsRemaining int       `json:"freeRequestsRemaining"`
-	FreeRequestsReset     string    `json:"freeRequestsReset"`
-	CreditsRemaining      *float64  `json:"creditsRemaining,omitempty"`
-	RetryAfter            string    `json:"retryAfter"`
-	ReceivedAt            time.Time `json:"receivedAt"`
-}
-
-func toAssistantLimits(r assistant.RateLimit) AssistantLimits {
-	return AssistantLimits{
-		Provider: r.Provider, RequestsLimit: r.RequestsLimit, RequestsRemaining: r.RequestsRemaining,
-		RequestsReset: r.RequestsReset, TokensLimit: r.TokensLimit, TokensRemaining: r.TokensRemaining,
-		TokensReset: r.TokensReset, FreeRequestsLimit: r.FreeRequestsLimit,
-		FreeRequestsRemaining: r.FreeRequestsRemaining, FreeRequestsReset: r.FreeRequestsReset,
-		CreditsRemaining: r.CreditsRemaining, RetryAfter: r.RetryAfter, ReceivedAt: r.ReceivedAt,
-	}
-}
-
-func (a *App) GetAssistantLimits() AssistantLimits {
-	a.assistantMu.Lock()
-	limits := a.assistantLimits
-	a.assistantMu.Unlock()
-	provider := a.assistantSettings.Provider
-	if provider == assistant.ProviderOpenRouter && a.assistantKey(provider) != "" && a.ctx != nil {
-		ctx, cancel := context.WithTimeout(a.ctx, 15*time.Second)
-		defer cancel()
-		if fetched, err := assistant.FetchOpenRouterLimits(ctx, a.assistantKey(provider)); err == nil {
-			limits = *fetched
-			a.assistantMu.Lock()
-			a.assistantLimits = limits
-			a.assistantLimitsAt = time.Now()
-			a.assistantMu.Unlock()
-		}
-	}
-	return toAssistantLimits(limits)
-}
-
-func (a *App) assistantKey(provider string) string {
-	switch provider {
-	case assistant.ProviderOpenRouter:
-		return a.openRouterKey
-	case assistant.ProviderOllama, assistant.ProviderLlamaCpp:
-		return ""
-	case assistant.ProviderGoogle:
-		return a.currentGoogleKey()
-	default:
-		return a.groqKey
-	}
-}
-
 func (a *App) GetAssistantSettings() AssistantSettings {
 	s := a.assistantSettings
 	return AssistantSettings{
-		Provider: s.Provider, Model: s.Model, Temperature: s.Temperature,
-		MaxToolRounds: s.MaxToolRounds, SendPlayerNames: s.SendPlayerNames,
-		OllamaURL: s.OllamaURL, LlamaCppURL: s.LlamaCppURL,
-		HasGroqKey:       a.groqKey != "",
-		HasOpenRouterKey: a.openRouterKey != "",
-		GoogleKeyCount:   len(a.googleKeysSnapshot()),
-		GoogleActiveKey:  a.googleKeyIndex + 1,
+		Model: s.Model, Temperature: s.Temperature, MaxToolRounds: s.MaxToolRounds,
+		SendPlayerNames: s.SendPlayerNames,
+		GoogleKeyCount:  len(a.googleKeysSnapshot()), GoogleActiveKey: a.googleKeyIndex + 1,
 	}
 }
 
-func (a *App) SaveAssistantSettings(s AssistantSettings, groqKey, openRouterKey string) error {
-	if s.Provider != assistant.ProviderGroq && s.Provider != assistant.ProviderOpenRouter &&
-		s.Provider != assistant.ProviderOllama && s.Provider != assistant.ProviderLlamaCpp &&
-		s.Provider != assistant.ProviderGoogle {
-		return errors.New("неизвестный провайдер ассистента")
-	}
+func (a *App) SaveAssistantSettings(s AssistantSettings) error {
 	if strings.TrimSpace(s.Model) == "" {
 		return errors.New("выберите модель")
-	}
-	if s.OllamaURL == "" {
-		s.OllamaURL = assistant.OllamaBaseURL
-	}
-	if s.LlamaCppURL == "" {
-		s.LlamaCppURL = assistant.LlamaCppBaseURL
-	}
-	if assistant.IsLocal(s.Provider) {
-		url := s.OllamaURL
-		if s.Provider == assistant.ProviderLlamaCpp {
-			url = s.LlamaCppURL
-		}
-		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			return errors.New("URL локального сервера должен начинаться с http:// или https://")
-		}
 	}
 	if s.MaxToolRounds <= 0 {
 		s.MaxToolRounds = 6
@@ -151,78 +61,38 @@ func (a *App) SaveAssistantSettings(s AssistantSettings, groqKey, openRouterKey 
 		s.Temperature = 2
 	}
 	a.assistantSettings = assistant.Settings{
-		Provider: s.Provider, Model: strings.TrimSpace(s.Model),
-		Temperature: s.Temperature, MaxToolRounds: s.MaxToolRounds,
-		SendPlayerNames: s.SendPlayerNames, OllamaURL: s.OllamaURL, LlamaCppURL: s.LlamaCppURL,
-	}
-	if strings.TrimSpace(groqKey) != "" {
-		a.groqKey = strings.TrimSpace(groqKey)
-	}
-	if strings.TrimSpace(openRouterKey) != "" {
-		a.openRouterKey = strings.TrimSpace(openRouterKey)
+		Model: strings.TrimSpace(s.Model), Temperature: s.Temperature,
+		MaxToolRounds: s.MaxToolRounds, SendPlayerNames: s.SendPlayerNames,
 	}
 	return a.saveConfig()
 }
 
-func (a *App) ClearAssistantKey(provider string) error {
-	switch provider {
-	case assistant.ProviderGroq:
-		a.groqKey = ""
-	case assistant.ProviderOpenRouter:
-		a.openRouterKey = ""
-	default:
-		return errors.New("неизвестный провайдер")
-	}
-	return a.saveConfig()
-}
-
-func (a *App) ListAssistantModels(provider, baseURL string, refresh bool) ([]AssistantModel, error) {
-	if provider == "" {
-		provider = a.assistantSettings.Provider
-	}
-	if provider != assistant.ProviderGroq && provider != assistant.ProviderOpenRouter &&
-		provider != assistant.ProviderOllama && provider != assistant.ProviderLlamaCpp &&
-		provider != assistant.ProviderGoogle {
-		return nil, errors.New("неизвестный провайдер ассистента")
-	}
+func (a *App) ListAssistantModels(refresh bool) ([]AssistantModel, error) {
 	if a.ctx == nil {
 		return nil, errors.New("приложение ещё не запущено")
 	}
-	if baseURL == "" {
-		switch provider {
-		case assistant.ProviderOllama:
-			baseURL = a.assistantSettings.OllamaURL
-		case assistant.ProviderLlamaCpp:
-			baseURL = a.assistantSettings.LlamaCppURL
-		}
+	keys := a.googleKeysSnapshot()
+	if len(keys) == 0 {
+		return nil, errors.New("добавьте Google-ключ в настройках")
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
 	defer cancel()
-	var models []assistant.Model
-	var err error
-	if provider == assistant.ProviderGoogle {
-		keys := a.googleKeysSnapshot()
-		if len(keys) == 0 {
-			return nil, errors.New("добавьте Google-ключ в настройках")
+	var (
+		models []assistant.Model
+		err    error
+	)
+	for _, key := range keys {
+		models, err = assistant.ListModels(ctx, key, refresh)
+		if err == nil {
+			break
 		}
-		for _, key := range keys {
-			models, err = assistant.ListModels(ctx, provider, key, "", refresh)
-			if err == nil {
-				break
-			}
-		}
-	} else {
-		models, err = assistant.ListModels(ctx, provider, a.assistantKey(provider), baseURL, refresh)
 	}
 	if err != nil {
 		return nil, err
 	}
 	out := make([]AssistantModel, 0, len(models))
 	for _, m := range models {
-		out = append(out, AssistantModel{
-			ID: m.ID, Name: m.Name, Provider: m.Provider, ContextLength: m.ContextLength,
-			SupportsTools: m.SupportsTools, Free: m.Free, Local: m.Local, Privacy: m.Privacy,
-		})
+		out = append(out, AssistantModel{ID: m.ID, Name: m.Name, ContextLength: m.ContextLength})
 	}
 	return out, nil
 }
@@ -231,9 +101,9 @@ func (a *App) TestAssistantConnection() error {
 	if strings.TrimSpace(a.assistantSettings.Model) == "" {
 		return errors.New("выберите модель")
 	}
-	key := a.assistantKey(a.assistantSettings.Provider)
-	if key == "" && !assistant.IsLocal(a.assistantSettings.Provider) {
-		return errors.New("сначала укажите API-ключ")
+	key := a.currentGoogleKey()
+	if key == "" {
+		return errors.New("нет доступных Google-ключей")
 	}
 	if a.ctx == nil {
 		return errors.New("приложение ещё не запущено")
@@ -262,16 +132,11 @@ func (a *App) SendAssistantMessage(text string) error {
 		a.assistantMu.Unlock()
 		return errors.New("выберите модель")
 	}
-	key := a.assistantKey(settings.Provider)
-	if settings.Provider == assistant.ProviderGoogle && a.currentGoogleKey() == "" {
+	if a.currentGoogleKey() == "" {
 		a.assistantMu.Unlock()
 		return errors.New("нет доступных Google-ключей. Проверьте ключи в настройках")
 	}
-	if key == "" && settings.Provider != assistant.ProviderGoogle && !assistant.IsLocal(settings.Provider) {
-		a.assistantMu.Unlock()
-		return errors.New("укажите API-ключ в настройках ассистента")
-	}
-	history := trimHistoryByBudget(a.assistantHistory, assistantHistoryBudget(settings.Provider))
+	history := trimHistoryByBudget(a.assistantHistory, assistantHistoryBudgetChars)
 	history = append(history, assistant.Message{Role: "user", Content: text})
 	ctx, cancel := context.WithCancel(a.ctx)
 	generation := a.assistantGeneration
@@ -300,34 +165,16 @@ func (a *App) SendAssistantMessage(text string) error {
 				runtime.EventsEmit(a.ctx, "assistantTool", map[string]any{"name": e.ToolName, "args": e.ToolArgs})
 			case "toolResult":
 				runtime.EventsEmit(a.ctx, "assistantToolResult", map[string]any{"name": e.ToolName, "result": e.ToolResult})
-			case "rate":
-				if e.Rate != nil {
-					a.assistantMu.Lock()
-					a.assistantLimits = *e.Rate
-					a.assistantLimitsAt = time.Now()
-					a.assistantMu.Unlock()
-					runtime.EventsEmit(a.ctx, "assistantLimits", toAssistantLimits(*e.Rate))
-				}
-			case "rateWait":
-				until := e.WaitUntil.UnixMilli()
-				runtime.EventsEmit(a.ctx, "assistantWait", map[string]any{
-					"seconds": e.WaitSeconds, "until": until, "reason": e.WaitReason,
-				})
 			}
 		}
-		var err error
-		if settings.Provider == assistant.ProviderGoogle {
-			err = assistant.RunWithRotator(ctx, settings, &appGoogleRotator{a: a}, &history, a.assistantTools(), emit)
-		} else {
-			err = assistant.Run(ctx, settings, key, &history, a.assistantTools(), emit)
-		}
+		err := assistant.RunWithRotator(ctx, settings, &appGoogleRotator{a: a}, &history, a.assistantTools(), emit)
 		if err != nil {
 			message := err.Error()
 			detail := ""
 			if errors.Is(err, context.Canceled) {
 				message = "запрос отменён"
 			} else {
-				message = assistant.FriendlyErrorFor(err, settings.Provider)
+				message = assistant.FriendlyError(err)
 				var apiErr *assistant.APIError
 				if errors.As(err, &apiErr) {
 					detail = apiErr.Body
@@ -335,17 +182,6 @@ func (a *App) SendAssistantMessage(text string) error {
 			}
 			runtime.EventsEmit(a.ctx, "assistantDone", map[string]any{"ok": false, "error": message, "detail": detail})
 			return
-		}
-		if settings.Provider == assistant.ProviderOpenRouter && key != "" {
-			limitCtx, limitCancel := context.WithTimeout(a.ctx, 15*time.Second)
-			if limits, err := assistant.FetchOpenRouterLimits(limitCtx, key); err == nil {
-				a.assistantMu.Lock()
-				a.assistantLimits = *limits
-				a.assistantLimitsAt = time.Now()
-				a.assistantMu.Unlock()
-				runtime.EventsEmit(a.ctx, "assistantLimits", toAssistantLimits(*limits))
-			}
-			limitCancel()
 		}
 		runtime.EventsEmit(a.ctx, "assistantDone", map[string]any{"ok": true})
 	}()
@@ -374,33 +210,6 @@ func (a *App) ClearAssistantHistory() {
 	if a.assistantHistoryPath != "" {
 		_ = os.Remove(a.assistantHistoryPath)
 	}
-}
-
-func assistantHistoryBudget(provider string) int {
-	switch provider {
-	case assistant.ProviderOpenRouter:
-		return 40000
-	case assistant.ProviderOllama, assistant.ProviderLlamaCpp:
-		return 16000
-	default:
-		return 12000
-	}
-}
-
-func messageChars(m assistant.Message) int {
-	n := len(m.Content) + len(m.Name)
-	for _, call := range m.ToolCalls {
-		n += len(call.Function.Name) + len(call.Function.Arguments)
-	}
-	return n
-}
-
-func historyChars(history []assistant.Message) int {
-	total := 0
-	for _, m := range history {
-		total += messageChars(m)
-	}
-	return total
 }
 
 func trimHistoryByBudget(history []assistant.Message, maxChars int) []assistant.Message {
@@ -457,4 +266,20 @@ func trimAssistantHistory(history []assistant.Message, max int) []assistant.Mess
 		start = len(history) - max
 	}
 	return append([]assistant.Message(nil), history[start:]...)
+}
+
+func messageChars(m assistant.Message) int {
+	n := len(m.Content) + len(m.Name)
+	for _, call := range m.ToolCalls {
+		n += len(call.Function.Name) + len(call.Function.Arguments)
+	}
+	return n
+}
+
+func historyChars(history []assistant.Message) int {
+	total := 0
+	for _, m := range history {
+		total += messageChars(m)
+	}
+	return total
 }

@@ -39,16 +39,12 @@ type App struct {
 	updating      bool
 
 	assistantSettings    assistant.Settings
-	groqKey              string
-	openRouterKey        string
 	assistantMu          sync.Mutex
 	assistantHistory     []assistant.Message
 	assistantRunning     bool
 	assistantCancel      context.CancelFunc
 	assistantGeneration  int
 	assistantProposal    *AssistantProposal
-	assistantLimits      assistant.RateLimit
-	assistantLimitsAt    time.Time
 	assistantHistoryPath string
 
 	googleMu        sync.Mutex
@@ -61,8 +57,6 @@ type appConfig struct {
 	ParserURL     string             `json:"parser_url"`
 	ParserEngine  string             `json:"parser_engine"`
 	Assistant     assistant.Settings `json:"assistant"`
-	GroqKeyEnc    string             `json:"groq_key_enc,omitempty"`
-	OpenRouterEnc string             `json:"openrouter_key_enc,omitempty"`
 	GoogleKeysEnc []string           `json:"google_keys_enc,omitempty"`
 }
 
@@ -99,11 +93,15 @@ func (a *App) startup(ctx context.Context) {
 	if cfg.ParserEngine != parse.EngineManta {
 		cfg.ParserEngine = parse.EngineOdota
 	}
-	if cfg.Assistant.Provider != assistant.ProviderOpenRouter {
-		cfg.Assistant.Provider = assistant.ProviderGroq
+	validModel := false
+	for _, id := range assistant.GoogleFreeModels {
+		if id == cfg.Assistant.Model {
+			validModel = true
+			break
+		}
 	}
-	if cfg.Assistant.Model == "" {
-		cfg.Assistant.Model = assistant.DefaultModel(cfg.Assistant.Provider)
+	if !validModel {
+		cfg.Assistant.Model = assistant.DefaultModel()
 	}
 	if cfg.Assistant.MaxToolRounds <= 0 {
 		cfg.Assistant.MaxToolRounds = 6
@@ -111,21 +109,9 @@ func (a *App) startup(ctx context.Context) {
 	if cfg.Assistant.Temperature <= 0 || cfg.Assistant.Temperature > 2 {
 		cfg.Assistant.Temperature = 0.2
 	}
-	if cfg.Assistant.OllamaURL == "" {
-		cfg.Assistant.OllamaURL = assistant.OllamaBaseURL
-	}
-	if cfg.Assistant.LlamaCppURL == "" {
-		cfg.Assistant.LlamaCppURL = assistant.LlamaCppBaseURL
-	}
 	a.parserURL = cfg.ParserURL
 	a.parserEngine = cfg.ParserEngine
 	a.assistantSettings = cfg.Assistant
-	if a.groqKey, err = assistant.DecryptSecret(cfg.GroqKeyEnc); err != nil {
-		runtime.LogError(ctx, "assistant groq key: "+err.Error())
-	}
-	if a.openRouterKey, err = assistant.DecryptSecret(cfg.OpenRouterEnc); err != nil {
-		runtime.LogError(ctx, "assistant openrouter key: "+err.Error())
-	}
 	for _, enc := range cfg.GoogleKeysEnc {
 		key, derr := assistant.DecryptSecret(enc)
 		if derr != nil || key == "" {
@@ -324,14 +310,6 @@ func (a *App) SetParserEngine(engine string) error {
 }
 
 func (a *App) saveConfig() error {
-	groqEnc, err := assistant.EncryptSecret(a.groqKey)
-	if err != nil {
-		return err
-	}
-	openRouterEnc, err := assistant.EncryptSecret(a.openRouterKey)
-	if err != nil {
-		return err
-	}
 	googleKeysEnc, err := a.googleKeysEncrypted()
 	if err != nil {
 		return err
@@ -340,8 +318,6 @@ func (a *App) saveConfig() error {
 		ParserURL:     a.parserURL,
 		ParserEngine:  a.parserEngine,
 		Assistant:     a.assistantSettings,
-		GroqKeyEnc:    groqEnc,
-		OpenRouterEnc: openRouterEnc,
 		GoogleKeysEnc: googleKeysEnc,
 	})
 	if err != nil {
