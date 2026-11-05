@@ -61,6 +61,8 @@ func TestFriendlyErrorCases(t *testing.T) {
 		{"no key", &NoAvailableKeyError{}, "Нет доступных"},
 		{"partial", &PartialResponseError{Err: errors.New("connection reset")}, "оборвался"},
 		{"retry exhausted", &RetryExhaustedError{Err: &APIError{Status: 503, Body: "overloaded"}, Attempts: 4}, "попыток"},
+		{"legacy session", errors.New("tls: server did not echo the legacy session ID"), "TLS-соединение"},
+		{"certificate", errors.New("tls: failed to verify certificate"), "сертификат"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

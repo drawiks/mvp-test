@@ -153,6 +153,10 @@ func IsTransientError(err error) bool {
 	if err == nil || errors.Is(err, context.Canceled) {
 		return false
 	}
+	lower := strings.ToLower(err.Error())
+	if IsLegacySessionIDError(err) || strings.Contains(lower, "tls: failed to verify certificate") || strings.Contains(lower, "x509:") {
+		return false
+	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}

@@ -146,7 +146,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 	}
 	req.Header.Set("User-Agent", "mvp-test-assistant")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := assistantHTTPClient.Do(req)
 	if err != nil {
 		return Message{}, err
 	}

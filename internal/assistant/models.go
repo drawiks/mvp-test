@@ -50,7 +50,7 @@ func fetchGoogleModels(ctx context.Context, apiKey string) ([]Model, error) {
 	}
 	req.Header.Set("x-goog-api-key", apiKey)
 	req.Header.Set("User-Agent", "mvp-test-assistant")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := assistantHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

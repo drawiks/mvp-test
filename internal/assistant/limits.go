@@ -47,6 +47,18 @@ func FriendlyError(err error) string {
 		return noKey.Error()
 	}
 
+	lowerErr := strings.ToLower(err.Error())
+	switch {
+	case IsLegacySessionIDError(err):
+		return "Не удалось установить TLS-соединение с прокси Gemini. Проверьте VPN, антивирус или сетевой фильтр."
+	case strings.Contains(lowerErr, "tls: failed to verify certificate") || strings.Contains(lowerErr, "x509:"):
+		return "Не удалось проверить сертификат прокси. Проверьте системное время и сеть."
+	case strings.Contains(lowerErr, "tls handshake timeout"):
+		return "Прокси не завершил TLS-рукопожатие вовремя. Повторите запрос."
+	case strings.Contains(lowerErr, "tls: handshake failure") || strings.Contains(lowerErr, "tls: bad record mac") || strings.Contains(lowerErr, "tls: error decoding message"):
+		return "Ошибка TLS при подключении к прокси. Проверьте VPN и антивирус."
+	}
+
 	attempts := 0
 	var exhausted *RetryExhaustedError
 	if errors.As(err, &exhausted) {
