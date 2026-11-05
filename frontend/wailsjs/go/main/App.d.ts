@@ -5,11 +5,17 @@ import {main} from '../models';
 
 export function ActivePresetID():Promise<string>;
 
+export function CancelAssistant():Promise<void>;
+
 export function CancelParse():Promise<void>;
 
 export function CheckForUpdates():Promise<main.UpdateInfo>;
 
 export function ChooseReplay():Promise<void>;
+
+export function ClearAssistantHistory():Promise<void>;
+
+export function ClearAssistantKey(arg1:string):Promise<void>;
 
 export function CurrentPreset():Promise<formula.Preset>;
 
@@ -29,6 +35,8 @@ export function ExportVariableDialog(arg1:string):Promise<boolean>;
 
 export function GetAppVersion():Promise<string>;
 
+export function GetAssistantSettings():Promise<main.AssistantSettings>;
+
 export function GetParserEngine():Promise<string>;
 
 export function GetParserURL():Promise<string>;
@@ -43,6 +51,8 @@ export function ImportVariableDialog():Promise<formula.Variable|boolean>;
 
 export function InstallUpdate():Promise<void>;
 
+export function ListAssistantModels(arg1:string,arg2:boolean):Promise<Array<main.AssistantModel>>;
+
 export function ListPresets():Promise<Array<formula.Preset>>;
 
 export function ListVariables():Promise<Array<formula.Variable>>;
@@ -55,11 +65,17 @@ export function RemovePreset(arg1:string):Promise<boolean>;
 
 export function RemoveVariable(arg1:string):Promise<void>;
 
+export function SaveAssistantSettings(arg1:main.AssistantSettings,arg2:string,arg3:string):Promise<void>;
+
+export function SendAssistantMessage(arg1:string):Promise<void>;
+
 export function SetActivePreset(arg1:string):Promise<void>;
 
 export function SetParserEngine(arg1:string):Promise<void>;
 
 export function SetParserURL(arg1:string):Promise<void>;
+
+export function TestAssistantConnection():Promise<void>;
 
 export function TestPlayerStats():Promise<Record<string, number>>;
 

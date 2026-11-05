@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"mvp/internal/assistant"
 	"mvp/internal/formula"
 	"mvp/internal/mvp"
 	"mvp/internal/parse"
@@ -93,6 +95,42 @@ func TestAppParserURLRoundtrip(t *testing.T) {
 	_ = a
 }
 
+func TestAssistantTools(t *testing.T) {
+	a := fixture(t)
+	a.assistantSettings = assistant.DefaultSettings()
+
+	ctx, err := a.toolMatchContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ctx.Players) != 10 {
+		t.Fatalf("players %d", len(ctx.Players))
+	}
+	if ctx.Players[0].Name != "" || ctx.Players[0].SteamID != 0 {
+		t.Fatalf("names must be masked: %+v", ctx.Players[0])
+	}
+	if _, err := a.toolPreview("kills * 2 + assists"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.toolPreview("kills * +"); err == nil {
+		t.Fatal("invalid formula must fail")
+	}
+	a.assistantSettings.SendPlayerNames = true
+	player, err := a.toolPlayer(ctx.Players[0].PlayerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if player.Name == "" || player.SteamID == 0 {
+		t.Fatalf("names must be included: %+v", player)
+	}
+	if _, err := a.toolExplain("kills * 2 + assists", ctx.Players[0].PlayerID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.toolCompare("kills", "assists"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestUpdateMethodsWhenDev(t *testing.T) {
 	a := &App{}
 	if a.GetAppVersion() != version {
@@ -125,8 +163,12 @@ func TestSetParserEngine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(data) != `{"parser_engine":"manta","parser_url":"http://localhost:5600"}` {
-		t.Fatalf("config %s", data)
+	var cfg appConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ParserEngine != "manta" || cfg.ParserURL != parserURLDefault {
+		t.Fatalf("config %+v", cfg)
 	}
 }
 

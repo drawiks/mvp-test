@@ -7,6 +7,7 @@ import type { MatchInfo } from "@/components/InfoBar";
 import HomePage from "@/pages/HomePage";
 import FormulasPage from "@/pages/FormulasPage";
 import VariablesPage from "@/pages/VariablesPage";
+import AssistantPage from "@/pages/AssistantPage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -15,10 +16,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
-const NAV: { id: "home" | "formulas" | "variables"; label: string }[] = [
+const NAV: { id: "home" | "formulas" | "variables" | "assistant"; label: string }[] = [
   { id: "home", label: "Главная" },
   { id: "formulas", label: "Формулы" },
   { id: "variables", label: "Переменные" },
+  { id: "assistant", label: "Ассистент" },
 ];
 
 export default function App() {
@@ -32,7 +34,7 @@ export default function App() {
   const [parserEngine, setParserEngine] = useState("odota");
   const [loading, setLoading] = useState(true);
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
-  const [page, setPage] = useState<"home" | "formulas" | "variables">("home");
+  const [page, setPage] = useState<"home" | "formulas" | "variables" | "assistant">("home");
   const [appVersion, setAppVersion] = useState("");
   const [update, setUpdate] = useState<main.UpdateInfo | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
@@ -262,6 +264,8 @@ export default function App() {
         <FormulasPage presets={presets} activeId={activeId} onChange={refreshPresets} />
       ) : page === "variables" ? (
         <VariablesPage views={views} />
+      ) : page === "assistant" ? (
+        <AssistantPage onChange={refreshPresets} onOpenFormulas={() => setPage("formulas")} />
       ) : views && views.length > 0 ? (
         <HomePage views={views} presets={presets} activeId={activeId} matchInfo={matchInfo} onChange={refreshPresets} />
       ) : (

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"mvp/internal/assistant"
 	"mvp/internal/formula"
 	"mvp/internal/model"
 	"mvp/internal/mvp"
@@ -36,6 +37,24 @@ type App struct {
 	updateMu      sync.Mutex
 	updateRelease *updater.Release
 	updating      bool
+
+	assistantSettings   assistant.Settings
+	groqKey             string
+	openRouterKey       string
+	assistantMu         sync.Mutex
+	assistantHistory    []assistant.Message
+	assistantRunning    bool
+	assistantCancel     context.CancelFunc
+	assistantGeneration int
+	assistantProposal   *AssistantProposal
+}
+
+type appConfig struct {
+	ParserURL     string             `json:"parser_url"`
+	ParserEngine  string             `json:"parser_engine"`
+	Assistant     assistant.Settings `json:"assistant"`
+	GroqKeyEnc    string             `json:"groq_key_enc,omitempty"`
+	OpenRouterEnc string             `json:"openrouter_key_enc,omitempty"`
 }
 
 func NewApp() *App {
@@ -54,21 +73,42 @@ func (a *App) startup(ctx context.Context) {
 	a.configPath = filepath.Join(dir, "config.json")
 	a.store = formula.NewStore(filepath.Join(dir, "formulas.json"))
 	a.varStore = formula.NewVariableStore(filepath.Join(dir, "variables.json"))
-	a.parserURL = parserURLDefault
-	a.parserEngine = parse.EngineOdota
+	cfg := appConfig{
+		ParserURL:    parserURLDefault,
+		ParserEngine: parse.EngineOdota,
+		Assistant:    assistant.DefaultSettings(),
+	}
 	if data, err := os.ReadFile(a.configPath); err == nil {
-		var cfg struct {
-			ParserURL    string `json:"parser_url"`
-			ParserEngine string `json:"parser_engine"`
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			cfg = appConfig{ParserURL: parserURLDefault, ParserEngine: parse.EngineOdota, Assistant: assistant.DefaultSettings()}
 		}
-		if json.Unmarshal(data, &cfg) == nil {
-			if cfg.ParserURL != "" {
-				a.parserURL = cfg.ParserURL
-			}
-			if cfg.ParserEngine == parse.EngineManta {
-				a.parserEngine = parse.EngineManta
-			}
-		}
+	}
+	if cfg.ParserURL == "" {
+		cfg.ParserURL = parserURLDefault
+	}
+	if cfg.ParserEngine != parse.EngineManta {
+		cfg.ParserEngine = parse.EngineOdota
+	}
+	if cfg.Assistant.Provider != assistant.ProviderOpenRouter {
+		cfg.Assistant.Provider = assistant.ProviderGroq
+	}
+	if cfg.Assistant.Model == "" {
+		cfg.Assistant.Model = assistant.DefaultModel(cfg.Assistant.Provider)
+	}
+	if cfg.Assistant.MaxToolRounds <= 0 {
+		cfg.Assistant.MaxToolRounds = 6
+	}
+	if cfg.Assistant.Temperature <= 0 || cfg.Assistant.Temperature > 2 {
+		cfg.Assistant.Temperature = 0.2
+	}
+	a.parserURL = cfg.ParserURL
+	a.parserEngine = cfg.ParserEngine
+	a.assistantSettings = cfg.Assistant
+	if a.groqKey, err = assistant.DecryptSecret(cfg.GroqKeyEnc); err != nil {
+		runtime.LogError(ctx, "assistant groq key: "+err.Error())
+	}
+	if a.openRouterKey, err = assistant.DecryptSecret(cfg.OpenRouterEnc); err != nil {
+		runtime.LogError(ctx, "assistant openrouter key: "+err.Error())
 	}
 }
 
@@ -256,14 +296,25 @@ func (a *App) SetParserEngine(engine string) error {
 }
 
 func (a *App) saveConfig() error {
-	cfg, err := json.Marshal(map[string]any{
-		"parser_url":    a.parserURL,
-		"parser_engine": a.parserEngine,
+	groqEnc, err := assistant.EncryptSecret(a.groqKey)
+	if err != nil {
+		return err
+	}
+	openRouterEnc, err := assistant.EncryptSecret(a.openRouterKey)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(appConfig{
+		ParserURL:     a.parserURL,
+		ParserEngine:  a.parserEngine,
+		Assistant:     a.assistantSettings,
+		GroqKeyEnc:    groqEnc,
+		OpenRouterEnc: openRouterEnc,
 	})
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(a.configPath, cfg, 0o644)
+	return os.WriteFile(a.configPath, data, 0o644)
 }
 
 func (a *App) ListPresets() []formula.Preset { return a.store.Presets() }

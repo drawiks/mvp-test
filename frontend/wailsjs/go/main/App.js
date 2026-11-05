@@ -6,6 +6,10 @@ export function ActivePresetID() {
   return window['go']['main']['App']['ActivePresetID']();
 }
 
+export function CancelAssistant() {
+  return window['go']['main']['App']['CancelAssistant']();
+}
+
 export function CancelParse() {
   return window['go']['main']['App']['CancelParse']();
 }
@@ -16,6 +20,14 @@ export function CheckForUpdates() {
 
 export function ChooseReplay() {
   return window['go']['main']['App']['ChooseReplay']();
+}
+
+export function ClearAssistantHistory() {
+  return window['go']['main']['App']['ClearAssistantHistory']();
+}
+
+export function ClearAssistantKey(arg1) {
+  return window['go']['main']['App']['ClearAssistantKey'](arg1);
 }
 
 export function CurrentPreset() {
@@ -54,6 +66,10 @@ export function GetAppVersion() {
   return window['go']['main']['App']['GetAppVersion']();
 }
 
+export function GetAssistantSettings() {
+  return window['go']['main']['App']['GetAssistantSettings']();
+}
+
 export function GetParserEngine() {
   return window['go']['main']['App']['GetParserEngine']();
 }
@@ -82,6 +98,10 @@ export function InstallUpdate() {
   return window['go']['main']['App']['InstallUpdate']();
 }
 
+export function ListAssistantModels(arg1, arg2) {
+  return window['go']['main']['App']['ListAssistantModels'](arg1, arg2);
+}
+
 export function ListPresets() {
   return window['go']['main']['App']['ListPresets']();
 }
@@ -106,6 +126,14 @@ export function RemoveVariable(arg1) {
   return window['go']['main']['App']['RemoveVariable'](arg1);
 }
 
+export function SaveAssistantSettings(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveAssistantSettings'](arg1, arg2, arg3);
+}
+
+export function SendAssistantMessage(arg1) {
+  return window['go']['main']['App']['SendAssistantMessage'](arg1);
+}
+
 export function SetActivePreset(arg1) {
   return window['go']['main']['App']['SetActivePreset'](arg1);
 }
@@ -116,6 +144,10 @@ export function SetParserEngine(arg1) {
 
 export function SetParserURL(arg1) {
   return window['go']['main']['App']['SetParserURL'](arg1);
+}
+
+export function TestAssistantConnection() {
+  return window['go']['main']['App']['TestAssistantConnection']();
 }
 
 export function TestPlayerStats() {

@@ -55,6 +55,70 @@ export namespace formula {
 
 export namespace main {
 
+	export class AssistantModel {
+	    id: string;
+	    name: string;
+	    provider: string;
+	    contextLength: number;
+	    supportsTools: boolean;
+	    free: boolean;
+	    note: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AssistantModel(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.provider = source["provider"];
+	        this.contextLength = source["contextLength"];
+	        this.supportsTools = source["supportsTools"];
+	        this.free = source["free"];
+	        this.note = source["note"];
+	    }
+	}
+	export class AssistantProposal {
+	    name: string;
+	    description: string;
+	    expression: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AssistantProposal(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.expression = source["expression"];
+	    }
+	}
+	export class AssistantSettings {
+	    provider: string;
+	    model: string;
+	    temperature: number;
+	    maxToolRounds: number;
+	    sendPlayerNames: boolean;
+	    hasGroqKey: boolean;
+	    hasOpenRouterKey: boolean;
+
+	    static createFrom(source: any = {}) {
+	        return new AssistantSettings(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.model = source["model"];
+	        this.temperature = source["temperature"];
+	        this.maxToolRounds = source["maxToolRounds"];
+	        this.sendPlayerNames = source["sendPlayerNames"];
+	        this.hasGroqKey = source["hasGroqKey"];
+	        this.hasOpenRouterKey = source["hasOpenRouterKey"];
+	    }
+	}
 	export class UpdateInfo {
 	    currentVersion: string;
 	    latestVersion: string;
