@@ -22,3 +22,13 @@ var (
 func DefaultModel() string {
 	return GoogleFreeModels[0]
 }
+
+// FallbackModel returns the first curated model different from current.
+func FallbackModel(current string) (string, bool) {
+	for _, id := range GoogleFreeModels {
+		if id != current {
+			return id, true
+		}
+	}
+	return "", false
+}

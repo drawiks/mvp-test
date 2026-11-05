@@ -525,6 +525,40 @@ func TestGoogleKeyRotation(t *testing.T) {
 	}
 }
 
+func TestGoogleKeyRotationInvalidKey(t *testing.T) {
+	a := &App{
+		googleKeys:      []string{"key-1", "key-2"},
+		googleKeyStates: []googleKeyState{{}, {}},
+	}
+	r := &appGoogleRotator{a: a}
+	next, ok := r.Rotate(&assistant.APIError{Status: 401, Body: "API key not valid"})
+	if !ok || next != "key-2" {
+		t.Fatalf("next %q ok %v", next, ok)
+	}
+	infos := a.GetGoogleKeys()
+	if infos[0].Status != "invalid" || !infos[1].Active {
+		t.Fatalf("infos %+v", infos)
+	}
+}
+
+func TestGoogleKeyRotationSingleKey(t *testing.T) {
+	a := &App{
+		googleKeys:      []string{"key-1"},
+		googleKeyStates: []googleKeyState{{}},
+	}
+	r := &appGoogleRotator{a: a}
+	next, ok := r.Rotate(&assistant.APIError{Status: 429, RetryAfter: "2"})
+	if ok || next != "" {
+		t.Fatalf("next %q ok %v", next, ok)
+	}
+	if r.Key() != "key-1" {
+		t.Fatalf("single key must stay available, got %q", r.Key())
+	}
+	if !a.googleKeyStates[0].CooldownUntil.IsZero() {
+		t.Fatal("single key must not be put on cooldown")
+	}
+}
+
 func TestGoogleKeysAddRemove(t *testing.T) {
 	a := &App{configPath: filepath.Join(t.TempDir(), "config.json")}
 	if err := a.AddGoogleKey("key-1"); err != nil {

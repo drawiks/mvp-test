@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 const (
-	maxKeyRetries        = 3
 	maxToolCallsPerRound = 6
 	maxToolResultChars   = 4000
 )
@@ -33,7 +33,7 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 // rounds when Gemini reports quota or credential errors.
 func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, history *[]Message, tools []Tool, emit func(Event)) error {
 	if rotator == nil || strings.TrimSpace(rotator.Key()) == "" {
-		return fmt.Errorf("не задан Google API-ключ")
+		return &NoAvailableKeyError{}
 	}
 	rounds := settings.MaxToolRounds
 	if rounds <= 0 {
@@ -54,25 +54,8 @@ func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, 
 			answer Message
 			err    error
 		)
-		for attempt := 0; ; attempt++ {
-			emitted := false
-			wrapped := func(e Event) {
-				if e.Type == "delta" {
-					emitted = true
-				}
-				if emit != nil {
-					emit(e)
-				}
-			}
-			answer, err = streamChat(ctx, settings, rotator.Key(), messages, tools, wrapped)
-			if err == nil {
-				break
-			}
-			if !emitted && attempt < maxKeyRetries-1 {
-				if _, ok := rotator.Rotate(err); ok {
-					continue
-				}
-			}
+		answer, err = chatWithRetry(ctx, &settings, rotator, messages, tools, emit, round == 0)
+		if err != nil {
 			return err
 		}
 		*history = append(*history, answer)
@@ -131,6 +114,87 @@ func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, 
 	return fmt.Errorf("ассистент превысил лимит шагов инструментов (%d)", rounds)
 }
 
+func chatWithRetry(ctx context.Context, settings *Settings, rotator KeyRotator, messages []Message, tools []Tool, emit func(Event), allowFallback bool) (Message, error) {
+	totalAttempts := 0
+	modelAttempts := 0
+	fallbackUsed := false
+
+	for {
+		key := ""
+		if rotator != nil {
+			key = rotator.Key()
+		}
+		if strings.TrimSpace(key) == "" {
+			return Message{}, &NoAvailableKeyError{}
+		}
+
+		emitted := false
+		wrapped := func(event Event) {
+			if event.Type == "delta" {
+				emitted = true
+			}
+			if emit != nil {
+				emit(event)
+			}
+		}
+
+		answer, err := streamChat(ctx, *settings, key, messages, tools, wrapped)
+		totalAttempts++
+		modelAttempts++
+		if err == nil {
+			return answer, nil
+		}
+		if ctx.Err() != nil {
+			return Message{}, ctx.Err()
+		}
+		if emitted {
+			return Message{}, &PartialResponseError{Err: err}
+		}
+
+		if modelAttempts >= maxAttempts {
+			// Only switch models on the first round: later history contains
+			// thought signatures tied to the original model.
+			if allowFallback && !fallbackUsed && IsHighDemandError(err) {
+				if next, ok := FallbackModel(settings.Model); ok {
+					emitRetry(emit, fmt.Sprintf("Модель %s перегружена. Переключаюсь на %s.", settings.Model, next), 0, 0, 0)
+					settings.Model = next
+					fallbackUsed = true
+					modelAttempts = 0
+					continue
+				}
+			}
+			return Message{}, &RetryExhaustedError{Err: err, Attempts: totalAttempts}
+		}
+
+		if rotator != nil {
+			if _, ok := rotator.Rotate(err); ok {
+				emitRetry(emit, "Переключаю Google-ключ.", totalAttempts, maxAttempts, 0)
+				continue
+			}
+		}
+		if !IsTransientError(err) {
+			return Message{}, err
+		}
+
+		delay := RetryDelay(err, modelAttempts-1)
+		emitRetry(emit, fmt.Sprintf("%s. Повторяю через %s (попытка %d/%d).", RetryReason(err), delay.Round(time.Millisecond), modelAttempts+1, maxAttempts), modelAttempts+1, maxAttempts, delay)
+		if err := SleepContext(ctx, delay); err != nil {
+			return Message{}, err
+		}
+	}
+}
+
+func emitRetry(emit func(Event), text string, attempt, max int, delay time.Duration) {
+	if emit == nil {
+		return
+	}
+	emit(Event{
+		Type: "retry", Text: text,
+		RetryAttempt: attempt, RetryMax: max,
+		RetryDelayMS: int(delay / time.Millisecond),
+	})
+}
+
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
@@ -141,6 +205,6 @@ func truncate(s string, n int) string {
 // Ping performs a minimal chat request to validate credentials and model access.
 func Ping(ctx context.Context, settings Settings, apiKey string) error {
 	history := []Message{{Role: "user", Content: "Ответь одним словом: ok"}}
-	_, err := streamChat(ctx, settings, apiKey, history, nil, nil)
+	_, err := chatWithRetry(ctx, &settings, singleKeyRotator{key: apiKey}, history, nil, nil, true)
 	return err
 }

@@ -33,12 +33,16 @@ type chatRequest struct {
 	Stream      bool             `json:"stream"`
 }
 
+type streamError struct {
+	Code    json.RawMessage `json:"code"`
+	Message string          `json:"message"`
+	Status  string          `json:"status"`
+}
+
 type streamChunk struct {
-	Error *struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"error"`
-	Choices []struct {
+	EventType string       `json:"event_type"`
+	Error     *streamError `json:"error"`
+	Choices   []struct {
 		Delta struct {
 			Content   string `json:"content"`
 			ToolCalls []struct {
@@ -54,6 +58,58 @@ type streamChunk struct {
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
+}
+
+func streamErrorStatus(err *streamError) int {
+	if err == nil {
+		return http.StatusBadGateway
+	}
+	if len(err.Code) > 0 {
+		var code int
+		if json.Unmarshal(err.Code, &code) == nil && code > 0 {
+			return code
+		}
+		var text string
+		if json.Unmarshal(err.Code, &text) == nil {
+			if status := errorStatusFromString(text); status != 0 {
+				return status
+			}
+		}
+	}
+	if status := errorStatusFromString(err.Status); status != 0 {
+		return status
+	}
+	return http.StatusBadGateway
+}
+
+func errorStatusFromString(code string) int {
+	switch strings.ToLower(strings.TrimSpace(code)) {
+	case "invalid_request", "failed_precondition", "parameter_unknown":
+		return http.StatusBadRequest
+	case "authentication", "unauthenticated":
+		return http.StatusUnauthorized
+	case "payment_required":
+		return http.StatusPaymentRequired
+	case "permission_denied":
+		return http.StatusForbidden
+	case "not_found", "model_not_found":
+		return http.StatusNotFound
+	case "already_exists", "aborted":
+		return http.StatusConflict
+	case "rate_limit_exceeded", "quota_exceeded", "too_many_requests", "resource_exhausted":
+		return http.StatusTooManyRequests
+	case "cancelled":
+		return 499
+	case "api_error", "internal":
+		return http.StatusInternalServerError
+	case "unimplemented":
+		return http.StatusNotImplemented
+	case "service_unavailable", "unavailable", "overloaded":
+		return http.StatusServiceUnavailable
+	case "deadline_exceeded":
+		return http.StatusGatewayTimeout
+	}
+	return 0
 }
 
 func streamChat(ctx context.Context, settings Settings, apiKey string, messages []Message, tools []Tool, emit func(Event)) (Message, error) {
@@ -119,12 +175,8 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			continue
 		}
-		if chunk.Error != nil && chunk.Error.Message != "" {
-			status := chunk.Error.Code
-			if status == 0 {
-				status = http.StatusBadGateway
-			}
-			return Message{}, &APIError{Status: status, Body: chunk.Error.Message}
+		if chunk.Error != nil {
+			return Message{}, &APIError{Status: streamErrorStatus(chunk.Error), Body: chunk.Error.Message}
 		}
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
@@ -201,7 +253,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		toolCalls = append(toolCalls, call)
 	}
 	if content.Len() == 0 && len(toolCalls) == 0 {
-		return Message{}, fmt.Errorf("ассистент вернул пустой ответ")
+		return Message{}, &EmptyResponseError{}
 	}
 	return Message{Role: "assistant", Content: content.String(), ToolCalls: toolCalls}, nil
 }

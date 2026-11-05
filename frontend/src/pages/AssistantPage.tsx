@@ -29,6 +29,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState("");
   const [errorDetail, setErrorDetail] = useState("");
+  const [retryMessage, setRetryMessage] = useState("");
   const [proposal, setProposal] = useState<main.AssistantProposal | null>(null);
   const [diff, setDiff] = useState<main.FormulaDiff | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -130,8 +131,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     onEvent("assistantProposal", (payload: main.AssistantProposal | null) => {
       if (payload) void showProposal(payload);
     });
+    onEvent("assistantRetry", (payload: { message?: string } | null) => {
+      setRetryMessage(payload?.message ?? "Повторяю запрос к Gemini…");
+    });
     onEvent("assistantDone", (payload: { ok?: boolean; error?: string; detail?: string } | null) => {
       setStreaming(false);
+      setRetryMessage("");
       if (!payload?.ok) {
         setError(payload?.error ?? "Ошибка ассистента");
         setErrorDetail(payload?.detail ?? "");
@@ -143,6 +148,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       offEvent("assistantTool");
       offEvent("assistantToolResult");
       offEvent("assistantProposal");
+      offEvent("assistantRetry");
       offEvent("assistantDone");
     };
   }, []);
@@ -174,6 +180,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     setInput("");
     setError("");
     setErrorDetail("");
+    setRetryMessage("");
     setProposal(null);
     setDiff(null);
     setMessages((prev) => [...prev, { role: "user", text, tools: [] }]);
@@ -193,6 +200,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     setDiff(null);
     setError("");
     setErrorDetail("");
+    setRetryMessage("");
   };
 
   const saveProposal = async () => {
@@ -292,6 +300,13 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
             </details>
           )}
           <Button variant="outline" size="sm" onClick={() => void clear()}>Очистить историю</Button>
+        </div>
+      )}
+
+      {retryMessage && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200" role="status">
+          <Loader2 className="size-3.5 animate-spin" />
+          {retryMessage}
         </div>
       )}
 

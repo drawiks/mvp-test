@@ -88,7 +88,7 @@ func (a *App) ListAssistantModels(refresh bool) ([]AssistantModel, error) {
 		}
 	}
 	if err != nil {
-		return nil, err
+		return nil, errors.New(assistant.FriendlyError(err))
 	}
 	out := make([]AssistantModel, 0, len(models))
 	for _, m := range models {
@@ -110,7 +110,10 @@ func (a *App) TestAssistantConnection() error {
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, 60*time.Second)
 	defer cancel()
-	return assistant.Ping(ctx, a.assistantSettings, key)
+	if err := assistant.Ping(ctx, a.assistantSettings, key); err != nil {
+		return errors.New(assistant.FriendlyError(err))
+	}
+	return nil
 }
 
 func (a *App) SendAssistantMessage(text string) error {
@@ -165,6 +168,11 @@ func (a *App) SendAssistantMessage(text string) error {
 				runtime.EventsEmit(a.ctx, "assistantTool", map[string]any{"name": e.ToolName, "args": e.ToolArgs})
 			case "toolResult":
 				runtime.EventsEmit(a.ctx, "assistantToolResult", map[string]any{"name": e.ToolName, "result": e.ToolResult})
+			case "retry":
+				runtime.EventsEmit(a.ctx, "assistantRetry", map[string]any{
+					"message": e.Text, "attempt": e.RetryAttempt,
+					"maxAttempts": e.RetryMax, "delayMs": e.RetryDelayMS,
+				})
 			}
 		}
 		err := assistant.RunWithRotator(ctx, settings, &appGoogleRotator{a: a}, &history, a.assistantTools(), emit)
@@ -178,6 +186,8 @@ func (a *App) SendAssistantMessage(text string) error {
 				var apiErr *assistant.APIError
 				if errors.As(err, &apiErr) {
 					detail = apiErr.Body
+				} else {
+					detail = err.Error()
 				}
 			}
 			runtime.EventsEmit(a.ctx, "assistantDone", map[string]any{"ok": false, "error": message, "detail": detail})

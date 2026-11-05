@@ -57,7 +57,7 @@ func fetchGoogleModels(ctx context.Context, apiKey string) ([]Model, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, &APIError{Status: resp.StatusCode, Body: extractErrorBody(raw)}
+		return nil, &APIError{Status: resp.StatusCode, Body: extractErrorBody(raw), RetryAfter: resp.Header.Get("Retry-After")}
 	}
 	var payload struct {
 		Models []struct {

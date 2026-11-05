@@ -73,6 +73,10 @@ type Event struct {
 	ToolResult string
 	Proposal   *Proposal
 	Err        error
+
+	RetryAttempt int
+	RetryMax     int
+	RetryDelayMS int
 }
 
 // APIError is a non-2xx response from the provider.

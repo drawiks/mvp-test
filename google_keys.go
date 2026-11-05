@@ -148,7 +148,7 @@ func (a *App) TestGoogleKeys() error {
 			okCount++
 		} else {
 			st.Invalid = assistant.IsInvalidKeyError(err)
-			st.LastError = err.Error()
+			st.LastError = assistant.FriendlyError(err)
 		}
 		a.googleKeyStates[i] = st
 		a.googleMu.Unlock()
@@ -179,21 +179,31 @@ func (r *appGoogleRotator) Rotate(err error) (string, bool) {
 	switch {
 	case assistant.IsInvalidKeyError(err):
 		st.Invalid = true
+		st.LastError = assistant.FriendlyError(err)
+		r.a.googleKeyStates[i] = st
 	case assistant.IsRateLimitError(err):
+		next := r.nextAvailableKeyLocked(i, now)
+		if next < 0 {
+			st.LastError = assistant.FriendlyError(err)
+			r.a.googleKeyStates[i] = st
+			return "", false
+		}
 		delay := time.Minute
 		var api *assistant.APIError
-		if errors.As(err, &api) && api.RetryAfter != "" {
-			if d, perr := time.ParseDuration(api.RetryAfter); perr == nil {
-				delay = d
+		if errors.As(err, &api) {
+			if parsed, ok := assistant.ParseRetryAfter(api.RetryAfter, now); ok {
+				delay = parsed
 			}
 		}
 		st.CooldownUntil = now.Add(delay)
+		st.LastError = assistant.FriendlyError(err)
+		r.a.googleKeyStates[i] = st
+		r.a.googleKeyIndex = next
+		return r.a.googleKeys[next], true
 	default:
 		return "", false
 	}
-	st.LastError = err.Error()
-	r.a.googleKeyStates[i] = st
-	for offset := 1; offset <= len(r.a.googleKeys); offset++ {
+	for offset := 1; offset < len(r.a.googleKeys); offset++ {
 		next := (i + offset) % len(r.a.googleKeys)
 		nextState := r.a.googleKeyStates[next]
 		if nextState.Invalid || nextState.CooldownUntil.After(now) {
@@ -203,6 +213,18 @@ func (r *appGoogleRotator) Rotate(err error) (string, bool) {
 		return r.a.googleKeys[next], true
 	}
 	return "", false
+}
+
+func (r *appGoogleRotator) nextAvailableKeyLocked(current int, now time.Time) int {
+	for offset := 1; offset < len(r.a.googleKeys); offset++ {
+		next := (current + offset) % len(r.a.googleKeys)
+		state := r.a.googleKeyStates[next]
+		if state.Invalid || state.CooldownUntil.After(now) {
+			continue
+		}
+		return next
+	}
+	return -1
 }
 
 func (a *App) googleKeysEncrypted() ([]string, error) {
