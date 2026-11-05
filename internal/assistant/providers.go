@@ -1,8 +1,8 @@
 package assistant
 
 const (
-	GoogleBaseURL   = "https://gemini-proxy.drawksr.workers.dev/v1beta/openai"
-	GoogleModelsURL = "https://gemini-proxy.drawksr.workers.dev/v1beta/models"
+	GoogleBaseURL   = "https://converter-bot.alwaysdata.net/v1beta/openai"
+	GoogleModelsURL = "https://converter-bot.alwaysdata.net/v1beta/models"
 )
 
 // GoogleFreeModels is the curated free-tier text model pool, in priority order.
