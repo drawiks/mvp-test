@@ -132,6 +132,66 @@ func TestRunToolLoop(t *testing.T) {
 	}
 }
 
+func TestRunToolLoopReplaysThoughtSignature(t *testing.T) {
+	requests := 0
+	const signature = `{"google":{"thought_signature":"sig-123"}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "text/event-stream")
+		if requests == 1 {
+			fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"x\\\":1}\"},\"extra_content\":%s}]}}]}\n\n", signature)
+			fmt.Fprint(w, "data: [DONE]\n\n")
+			return
+		}
+		var body struct {
+			Messages []struct {
+				ToolCalls []struct {
+					ExtraContent struct {
+						Google struct {
+							ThoughtSignature string `json:"thought_signature"`
+						} `json:"google"`
+					} `json:"extra_content"`
+				} `json:"tool_calls"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, message := range body.Messages {
+			for _, call := range message.ToolCalls {
+				if call.ExtraContent.Google.ThoughtSignature == "sig-123" {
+					found = true
+				}
+			}
+		}
+		if !found {
+			t.Error("thought_signature missing from replayed tool call")
+		}
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"готово\"}}]}\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	old := googleBaseURL
+	googleBaseURL = srv.URL
+	defer func() { googleBaseURL = old }()
+
+	history := []Message{{Role: "user", Content: "test"}}
+	tools := []Tool{{
+		Name: "echo", Description: "echo",
+		Parameters: map[string]any{"type": "object"},
+		Run: func(ctx context.Context, args map[string]any) (any, error) {
+			return map[string]any{"ok": true}, nil
+		},
+	}}
+	if err := Run(context.Background(), Settings{Model: "m", MaxToolRounds: 3}, "key", &history, tools, nil); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 2 {
+		t.Fatalf("requests %d", requests)
+	}
+}
+
 func TestFriendlyError(t *testing.T) {
 	if got := FriendlyError(&APIError{Status: 400, Body: "API key not valid"}); !strings.Contains(got, "недействителен") {
 		t.Fatalf("got %q", got)

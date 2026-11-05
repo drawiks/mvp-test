@@ -1,6 +1,9 @@
 package assistant
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 // Settings are the persisted assistant options.
 type Settings struct {
@@ -34,9 +37,10 @@ type Message struct {
 }
 
 type ToolCall struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Function FunctionCall `json:"function"`
+	ID           string          `json:"id"`
+	Type         string          `json:"type"`
+	Function     FunctionCall    `json:"function"`
+	ExtraContent json.RawMessage `json:"extra_content,omitempty"`
 }
 
 type FunctionCall struct {

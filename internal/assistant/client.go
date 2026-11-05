@@ -49,6 +49,7 @@ type streamChunk struct {
 					Name      string `json:"name"`
 					Arguments string `json:"arguments"`
 				} `json:"function"`
+				ExtraContent json.RawMessage `json:"extra_content"`
 			} `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
@@ -171,6 +172,9 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 				}
 				if tc.Function.Name != "" {
 					call.Function.Name = tc.Function.Name
+				}
+				if len(tc.ExtraContent) > 0 && string(tc.ExtraContent) != "null" {
+					call.ExtraContent = append(call.ExtraContent[:0], tc.ExtraContent...)
 				}
 				call.Function.Arguments += tc.Function.Arguments
 			}
