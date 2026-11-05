@@ -41,6 +41,8 @@ export function GetAppVersion():Promise<string>;
 
 export function GetAssistantHistory():Promise<main.AssistantHistoryState>;
 
+export function GetGoogleKeys():Promise<Array<main.GoogleKeyInfo>>;
+
 export function GetAssistantLimits():Promise<main.AssistantLimits>;
 
 export function GetAssistantSettings():Promise<main.AssistantSettings>;
@@ -77,6 +79,10 @@ export function SaveAssistantSettings(arg1:main.AssistantSettings,arg2:string,ar
 
 export function SendAssistantMessage(arg1:string):Promise<void>;
 
+export function AddGoogleKey(arg1:string):Promise<void>;
+
+export function RemoveGoogleKey(arg1:number):Promise<void>;
+
 export function SetActivePreset(arg1:string):Promise<void>;
 
 export function SetParserEngine(arg1:string):Promise<void>;
@@ -84,6 +90,8 @@ export function SetParserEngine(arg1:string):Promise<void>;
 export function SetParserURL(arg1:string):Promise<void>;
 
 export function TestAssistantConnection():Promise<void>;
+
+export function TestGoogleKeys():Promise<void>;
 
 export function TestPlayerStats():Promise<Record<string, number>>;
 

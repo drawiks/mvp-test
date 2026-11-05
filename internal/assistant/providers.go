@@ -7,6 +7,8 @@ const (
 	OpenRouterBaseURL = "https://openrouter.ai/api/v1"
 	OllamaBaseURL     = "http://127.0.0.1:11434/v1"
 	LlamaCppBaseURL   = "http://127.0.0.1:9931/v1"
+	GoogleBaseURL     = "https://gemini-proxy.drawksr.workers.dev/v1beta/openai"
+	GoogleModelsURL   = "https://gemini-proxy.drawksr.workers.dev/v1beta/models"
 )
 
 // GroqFreeModels is a curated list because Groq's /models response does not
@@ -34,6 +36,8 @@ var (
 	openRouterBaseURL = OpenRouterBaseURL
 )
 
+var googleModelsURL = GoogleModelsURL
+
 func BaseURL(provider string) string {
 	switch provider {
 	case ProviderOpenRouter:
@@ -42,6 +46,8 @@ func BaseURL(provider string) string {
 		return OllamaBaseURL
 	case ProviderLlamaCpp:
 		return LlamaCppBaseURL
+	case ProviderGoogle:
+		return GoogleBaseURL
 	default:
 		return groqBaseURL
 	}
@@ -56,6 +62,8 @@ func Endpoint(settings Settings) string {
 		return normalizedURL(settings.OllamaURL, OllamaBaseURL)
 	case ProviderLlamaCpp:
 		return normalizedURL(settings.LlamaCppURL, LlamaCppBaseURL)
+	case ProviderGoogle:
+		return GoogleBaseURL
 	default:
 		return groqBaseURL
 	}
@@ -85,7 +93,7 @@ func DefaultModel(provider string) string {
 	switch provider {
 	case ProviderOpenRouter:
 		return "nvidia/nemotron-3-ultra-550b-a55b:free"
-	case ProviderOllama, ProviderLlamaCpp:
+	case ProviderOllama, ProviderLlamaCpp, ProviderGoogle:
 		return ""
 	default:
 		return "qwen/qwen3.8-27b"
@@ -100,6 +108,8 @@ func ProviderName(provider string) string {
 		return "Ollama"
 	case ProviderLlamaCpp:
 		return "llama.cpp"
+	case ProviderGoogle:
+		return "Google AI Studio"
 	default:
 		return "GroqCloud"
 	}

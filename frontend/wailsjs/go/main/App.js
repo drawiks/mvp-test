@@ -78,6 +78,10 @@ export function GetAssistantHistory() {
   return window['go']['main']['App']['GetAssistantHistory']();
 }
 
+export function GetGoogleKeys() {
+  return window['go']['main']['App']['GetGoogleKeys']();
+}
+
 export function GetAssistantLimits() {
   return window['go']['main']['App']['GetAssistantLimits']();
 }
@@ -150,6 +154,14 @@ export function SendAssistantMessage(arg1) {
   return window['go']['main']['App']['SendAssistantMessage'](arg1);
 }
 
+export function AddGoogleKey(arg1) {
+  return window['go']['main']['App']['AddGoogleKey'](arg1);
+}
+
+export function RemoveGoogleKey(arg1) {
+  return window['go']['main']['App']['RemoveGoogleKey'](arg1);
+}
+
 export function SetActivePreset(arg1) {
   return window['go']['main']['App']['SetActivePreset'](arg1);
 }
@@ -164,6 +176,10 @@ export function SetParserURL(arg1) {
 
 export function TestAssistantConnection() {
   return window['go']['main']['App']['TestAssistantConnection']();
+}
+
+export function TestGoogleKeys() {
+  return window['go']['main']['App']['TestGoogleKeys']();
 }
 
 export function TestPlayerStats() {

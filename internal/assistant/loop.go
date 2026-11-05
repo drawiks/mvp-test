@@ -19,10 +19,26 @@ const systemPrompt = `Ты — ассистент по разработке MVP-
 8. Не вызывай explain_player для всех игроков. Для обзора используй preview_formula, а детально разбирай 1–2 ключевых игроков.
 9. Не повторяй get_match_context и другие тяжёлые вызовы без необходимости.`
 
-// Run executes an assistant turn, including any tool calls, and appends all
-// messages to history.
+type KeyRotator interface {
+	Key() string
+	Rotate(err error) (string, bool)
+}
+
+type singleKeyRotator struct{ key string }
+
+func (r singleKeyRotator) Key() string { return r.key }
+
+func (r singleKeyRotator) Rotate(error) (string, bool) { return "", false }
+
+// Run executes an assistant turn with a single API key.
 func Run(ctx context.Context, settings Settings, apiKey string, history *[]Message, tools []Tool, emit func(Event)) error {
-	if strings.TrimSpace(apiKey) == "" && !IsLocal(settings.Provider) {
+	return RunWithRotator(ctx, settings, singleKeyRotator{key: apiKey}, history, tools, emit)
+}
+
+// RunWithRotator executes an assistant turn and can switch keys between tool
+// rounds when the provider reports quota or credential errors.
+func RunWithRotator(ctx context.Context, settings Settings, rotator KeyRotator, history *[]Message, tools []Tool, emit func(Event)) error {
+	if rotator == nil || (strings.TrimSpace(rotator.Key()) == "" && !IsLocal(settings.Provider)) {
 		return fmt.Errorf("не задан API-ключ для %s", ProviderName(settings.Provider))
 	}
 	rounds := settings.MaxToolRounds
@@ -69,10 +85,16 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 					emit(e)
 				}
 			}
-			answer, rate, err = streamChat(ctx, settings, apiKey, messages, tools, wrapped)
+			key := rotator.Key()
+			answer, rate, err = streamChat(ctx, settings, key, messages, tools, wrapped)
 			limiter.Update(rate)
 			if err == nil {
 				break
+			}
+			if !emitted && attempt < maxRateRetries-1 {
+				if _, ok := rotator.Rotate(err); ok {
+					continue
+				}
 			}
 			delay, retry := limiter.RetryDelay(err, rate, emitted)
 			if !retry || attempt >= maxRateRetries-1 {

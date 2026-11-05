@@ -42,7 +42,7 @@ type streamChunk struct {
 		Delta struct {
 			Content   string `json:"content"`
 			ToolCalls []struct {
-				Index    int    `json:"index"`
+				Index    *int   `json:"index"`
 				ID       string `json:"id"`
 				Type     string `json:"type"`
 				Function struct {
@@ -53,6 +53,34 @@ type streamChunk struct {
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
+}
+
+func extractErrorBody(raw []byte) string {
+	trimmed := strings.TrimSpace(string(raw))
+	var obj struct {
+		Error json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal(raw, &obj) == nil && len(obj.Error) > 0 {
+		var msg struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(obj.Error, &msg) == nil && msg.Message != "" {
+			return msg.Message
+		}
+		var text string
+		if json.Unmarshal(obj.Error, &text) == nil && text != "" {
+			return text
+		}
+	}
+	var arr []struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if json.Unmarshal(raw, &arr) == nil && len(arr) > 0 && arr[0].Error.Message != "" {
+		return arr[0].Error.Message
+	}
+	return trimmed
 }
 
 func streamChat(ctx context.Context, settings Settings, apiKey string, messages []Message, tools []Tool, emit func(Event)) (Message, *RateLimit, error) {
@@ -108,15 +136,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 	}
 	if resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		body := strings.TrimSpace(string(raw))
-		var parsed struct {
-			Error struct {
-				Message string `json:"message"`
-			} `json:"error"`
-		}
-		if json.Unmarshal(raw, &parsed) == nil && parsed.Error.Message != "" {
-			body = parsed.Error.Message
-		}
+		body := extractErrorBody(raw)
 		return Message{}, rate, &APIError{Status: resp.StatusCode, Body: body, RetryAfter: resp.Header.Get("Retry-After"), Rate: rate}
 	}
 
@@ -125,6 +145,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 
 	var content strings.Builder
 	calls := map[int]*ToolCall{}
+	lastIndex := -1
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if !strings.HasPrefix(line, "data:") {
@@ -153,10 +174,35 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 				}
 			}
 			for _, tc := range choice.Delta.ToolCalls {
-				call := calls[tc.Index]
+				idx := lastIndex
+				if tc.Index != nil {
+					idx = *tc.Index
+				} else if tc.ID != "" {
+					found := false
+					for k, v := range calls {
+						if v.ID == tc.ID {
+							idx = k
+							found = true
+							break
+						}
+					}
+					if !found {
+						lastIndex++
+						idx = lastIndex
+					}
+				} else if tc.Function.Name != "" && calls[lastIndex] != nil && calls[lastIndex].Function.Name != "" && calls[lastIndex].Function.Name != tc.Function.Name {
+					lastIndex++
+					idx = lastIndex
+				}
+				if idx < 0 {
+					lastIndex = 0
+					idx = 0
+				}
+				lastIndex = idx
+				call := calls[idx]
 				if call == nil {
 					call = &ToolCall{Type: "function"}
-					calls[tc.Index] = call
+					calls[idx] = call
 				}
 				if tc.ID != "" {
 					call.ID = tc.ID

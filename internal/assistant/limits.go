@@ -174,6 +174,17 @@ func truncateText(s string, n int) string {
 func FriendlyErrorFor(err error, provider string) string {
 	var api *APIError
 	if errors.As(err, &api) {
+		if provider == ProviderGoogle {
+			if api.Status == http.StatusTooManyRequests {
+				return "Лимит Google AI Studio исчерпан на текущем ключе. Если добавлены другие ключи, приложение переключится автоматически."
+			}
+			if IsInvalidKeyError(err) {
+				return "Ключ Google недействителен. Проверьте ключи в настройках."
+			}
+			if api.Status >= 500 {
+				return "Ошибка прокси Google. Попробуйте позже."
+			}
+		}
 		if api.Status == http.StatusNotFound && IsLocal(provider) {
 			return "Модель не найдена на локальном сервере. Обновите список моделей или загрузите её."
 		}
@@ -195,4 +206,26 @@ func FriendlyErrorFor(err error, provider string) string {
 		}
 	}
 	return err.Error()
+}
+
+// IsRateLimitError reports whether err is a provider rate-limit rejection.
+func IsRateLimitError(err error) bool {
+	var api *APIError
+	return errors.As(err, &api) && api.Status == http.StatusTooManyRequests
+}
+
+// IsInvalidKeyError reports credential failures, including Gemini's 400 body.
+func IsInvalidKeyError(err error) bool {
+	var api *APIError
+	if !errors.As(err, &api) {
+		return false
+	}
+	if api.Status == http.StatusUnauthorized {
+		return true
+	}
+	lower := strings.ToLower(api.Body)
+	return strings.Contains(lower, "api key not valid") ||
+		strings.Contains(lower, "api_key_invalid") ||
+		strings.Contains(lower, "please pass a valid api key") ||
+		strings.Contains(lower, "missing or invalid authorization header")
 }

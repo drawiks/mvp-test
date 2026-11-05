@@ -155,6 +155,28 @@ export namespace main {
 	        this.removed = source["removed"];
 	    }
 	}
+	export class GoogleKeyInfo {
+	    index: number;
+	    masked: string;
+	    active: boolean;
+	    status: string;
+	    cooldownUntil: string;
+	    lastError: string;
+
+	    static createFrom(source: any = {}) {
+	        return new GoogleKeyInfo(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.index = source["index"];
+	        this.masked = source["masked"];
+	        this.active = source["active"];
+	        this.status = source["status"];
+	        this.cooldownUntil = source["cooldownUntil"];
+	        this.lastError = source["lastError"];
+	    }
+	}
 	export class AssistantModel {
 	    id: string;
 	    name: string;
@@ -207,6 +229,8 @@ export namespace main {
 	    llamaCppUrl: string;
 	    hasGroqKey: boolean;
 	    hasOpenRouterKey: boolean;
+	    googleKeyCount: number;
+	    googleActiveKey: number;
 
 	    static createFrom(source: any = {}) {
 	        return new AssistantSettings(source);
@@ -223,6 +247,8 @@ export namespace main {
 	        this.llamaCppUrl = source["llamaCppUrl"];
 	        this.hasGroqKey = source["hasGroqKey"];
 	        this.hasOpenRouterKey = source["hasOpenRouterKey"];
+	        this.googleKeyCount = source["googleKeyCount"];
+	        this.googleActiveKey = source["googleActiveKey"];
 	    }
 	}
 	export class UpdateInfo {

@@ -311,3 +311,51 @@ func TestEvalBreakdown(t *testing.T) {
 		t.Fatal("unknown steamID should error")
 	}
 }
+
+func TestGoogleKeyRotation(t *testing.T) {
+	a := &App{
+		googleKeys:      []string{"key-1", "key-2"},
+		googleKeyStates: []googleKeyState{{}, {}},
+	}
+	r := &appGoogleRotator{a: a}
+	if r.Key() != "key-1" {
+		t.Fatalf("key %q", r.Key())
+	}
+	next, ok := r.Rotate(&assistant.APIError{Status: 429, RetryAfter: "1"})
+	if !ok || next != "key-2" {
+		t.Fatalf("next %q ok %v", next, ok)
+	}
+	if r.Key() != "key-2" {
+		t.Fatalf("key %q", r.Key())
+	}
+	infos := a.GetGoogleKeys()
+	if len(infos) != 2 || infos[0].Status != "limited" || !infos[1].Active {
+		t.Fatalf("infos %+v", infos)
+	}
+	if infos[0].Masked == "key-1" {
+		t.Fatal("key must be masked")
+	}
+}
+
+func TestGoogleKeysAddRemove(t *testing.T) {
+	a := &App{configPath: filepath.Join(t.TempDir(), "config.json")}
+	if err := a.AddGoogleKey("key-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.AddGoogleKey("key-2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.AddGoogleKey("key-1"); err == nil {
+		t.Fatal("duplicate key must be rejected")
+	}
+	if len(a.GetGoogleKeys()) != 2 {
+		t.Fatal("keys not added")
+	}
+	if err := a.RemoveGoogleKey(0); err != nil {
+		t.Fatal(err)
+	}
+	keys := a.GetGoogleKeys()
+	if len(keys) != 1 || keys[0].Status != "ok" {
+		t.Fatalf("keys %+v", keys)
+	}
+}

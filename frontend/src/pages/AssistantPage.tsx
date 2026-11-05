@@ -19,6 +19,7 @@ const DEFAULT_MODEL: Record<string, string> = {
   openrouter: "nvidia/nemotron-3-ultra-550b-a55b:free",
   ollama: "",
   llamacpp: "",
+  google: "",
 };
 
 const DEFAULT_URL: Record<string, string> = {
@@ -31,6 +32,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   openrouter: "OpenRouter",
   ollama: "Ollama",
   llamacpp: "llama.cpp",
+  google: "Google AI Studio",
 };
 
 function localURL(settings: main.AssistantSettings | null, provider: string): string {
@@ -196,6 +198,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
         setErrorDetail(payload?.detail ?? "");
       }
       void refreshLimits();
+      void Bindings.GetAssistantSettings().then(setSettings).catch(() => {});
     });
     return () => {
       offEvent("assistantDelta");
@@ -307,6 +310,10 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   const isLocal = settings?.provider === "ollama" || settings?.provider === "llamacpp";
   const providerLabel = PROVIDER_LABEL[settings?.provider ?? ""] ?? "Ассистент";
   const limitText = isLocal ? "" : limitsLabel(limits, settings?.provider ?? "");
+  const googleKeyText =
+    settings?.provider === "google" && settings.googleKeyCount > 0
+      ? `ключ ${settings.googleActiveKey}/${settings.googleKeyCount}`
+      : "";
   const limitLow =
     !isLocal &&
     limits &&
@@ -327,6 +334,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
                 {currentModel?.name ?? settings.model}
               </span>
               <Badge variant={isLocal ? "outline" : "gold"} className="text-[9px]">{isLocal ? "LOCAL" : "FREE"}</Badge>
+              {googleKeyText && <span className="font-mono text-muted-foreground">{googleKeyText}</span>}
               {limitText && (
                 <span className={cn("font-mono tabular-nums", limitLow ? "text-destructive" : "text-muted-foreground")}>
                   {limitText}
@@ -358,6 +366,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
                 <SelectItem value="ollama">Ollama (локально)</SelectItem>
                 <SelectItem value="llamacpp">llama.cpp (локально)</SelectItem>
+                <SelectItem value="google">Google AI Studio</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -50,6 +50,11 @@ type App struct {
 	assistantLimits      assistant.RateLimit
 	assistantLimitsAt    time.Time
 	assistantHistoryPath string
+
+	googleMu        sync.Mutex
+	googleKeys      []string
+	googleKeyStates []googleKeyState
+	googleKeyIndex  int
 }
 
 type appConfig struct {
@@ -58,6 +63,7 @@ type appConfig struct {
 	Assistant     assistant.Settings `json:"assistant"`
 	GroqKeyEnc    string             `json:"groq_key_enc,omitempty"`
 	OpenRouterEnc string             `json:"openrouter_key_enc,omitempty"`
+	GoogleKeysEnc []string           `json:"google_keys_enc,omitempty"`
 }
 
 func NewApp() *App {
@@ -119,6 +125,17 @@ func (a *App) startup(ctx context.Context) {
 	}
 	if a.openRouterKey, err = assistant.DecryptSecret(cfg.OpenRouterEnc); err != nil {
 		runtime.LogError(ctx, "assistant openrouter key: "+err.Error())
+	}
+	for _, enc := range cfg.GoogleKeysEnc {
+		key, derr := assistant.DecryptSecret(enc)
+		if derr != nil || key == "" {
+			if derr != nil {
+				runtime.LogError(ctx, "assistant google key: "+derr.Error())
+			}
+			continue
+		}
+		a.googleKeys = append(a.googleKeys, key)
+		a.googleKeyStates = append(a.googleKeyStates, googleKeyState{})
 	}
 	a.loadAssistantHistory()
 }
@@ -315,12 +332,17 @@ func (a *App) saveConfig() error {
 	if err != nil {
 		return err
 	}
+	googleKeysEnc, err := a.googleKeysEncrypted()
+	if err != nil {
+		return err
+	}
 	data, err := json.Marshal(appConfig{
 		ParserURL:     a.parserURL,
 		ParserEngine:  a.parserEngine,
 		Assistant:     a.assistantSettings,
 		GroqKeyEnc:    groqEnc,
 		OpenRouterEnc: openRouterEnc,
+		GoogleKeysEnc: googleKeysEnc,
 	})
 	if err != nil {
 		return err

@@ -304,3 +304,53 @@ func TestRateLimiterRetryDelay(t *testing.T) {
 		t.Fatal("must not retry after partial stream")
 	}
 }
+
+func TestGoogleModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-goog-api-key") != "key" {
+			t.Errorf("missing google key header")
+		}
+		fmt.Fprint(w, `{"models":[
+			{"name":"models/gemini-3.5-flash-lite","displayName":"Gemini 3.5 Flash-Lite","inputTokenLimit":1000000,"supportedGenerationMethods":["generateContent"]},
+			{"name":"models/embedding-001","displayName":"Embedding","inputTokenLimit":2048,"supportedGenerationMethods":["embedContent"]}
+		]}`)
+	}))
+	defer srv.Close()
+	old := googleModelsURL
+	googleModelsURL = srv.URL
+	defer func() { googleModelsURL = old }()
+
+	models, err := ListModels(context.Background(), ProviderGoogle, "key", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 || models[0].ID != "gemini-3.5-flash-lite" || models[0].ContextLength != 1000000 {
+		t.Fatalf("models %+v", models)
+	}
+}
+
+func TestExtractErrorBodyArray(t *testing.T) {
+	got := extractErrorBody([]byte(`[{"error":{"code":400,"message":"Please pass a valid API key"}}]`))
+	if got != "Please pass a valid API key" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestGeminiToolCallsWithoutIndex(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"id\":\"a\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"x\\\":1}\"}}]}}]}\n\n")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"id\":\"b\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"x\\\":2}\"}}]}}]}\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	old := groqBaseURL
+	groqBaseURL = srv.URL
+	defer func() { groqBaseURL = old }()
+	msg, _, err := streamChat(context.Background(), Settings{Provider: ProviderGroq, Model: "m"}, "key", nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msg.ToolCalls) != 2 || msg.ToolCalls[0].ID != "a" || msg.ToolCalls[1].ID != "b" {
+		t.Fatalf("tool calls %+v", msg.ToolCalls)
+	}
+}

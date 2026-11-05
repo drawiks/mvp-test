@@ -10,6 +10,7 @@ const (
 	ProviderOpenRouter = "openrouter"
 	ProviderOllama     = "ollama"
 	ProviderLlamaCpp   = "llamacpp"
+	ProviderGoogle     = "google"
 )
 
 // Settings are the persisted assistant options. API keys are not part of this

@@ -22,6 +22,8 @@ type AssistantSettings struct {
 	LlamaCppURL      string  `json:"llamaCppUrl"`
 	HasGroqKey       bool    `json:"hasGroqKey"`
 	HasOpenRouterKey bool    `json:"hasOpenRouterKey"`
+	GoogleKeyCount   int     `json:"googleKeyCount"`
+	GoogleActiveKey  int     `json:"googleActiveKey"`
 }
 
 type AssistantModel struct {
@@ -92,6 +94,8 @@ func (a *App) assistantKey(provider string) string {
 		return a.openRouterKey
 	case assistant.ProviderOllama, assistant.ProviderLlamaCpp:
 		return ""
+	case assistant.ProviderGoogle:
+		return a.currentGoogleKey()
 	default:
 		return a.groqKey
 	}
@@ -105,12 +109,15 @@ func (a *App) GetAssistantSettings() AssistantSettings {
 		OllamaURL: s.OllamaURL, LlamaCppURL: s.LlamaCppURL,
 		HasGroqKey:       a.groqKey != "",
 		HasOpenRouterKey: a.openRouterKey != "",
+		GoogleKeyCount:   len(a.googleKeysSnapshot()),
+		GoogleActiveKey:  a.googleKeyIndex + 1,
 	}
 }
 
 func (a *App) SaveAssistantSettings(s AssistantSettings, groqKey, openRouterKey string) error {
 	if s.Provider != assistant.ProviderGroq && s.Provider != assistant.ProviderOpenRouter &&
-		s.Provider != assistant.ProviderOllama && s.Provider != assistant.ProviderLlamaCpp {
+		s.Provider != assistant.ProviderOllama && s.Provider != assistant.ProviderLlamaCpp &&
+		s.Provider != assistant.ProviderGoogle {
 		return errors.New("неизвестный провайдер ассистента")
 	}
 	if strings.TrimSpace(s.Model) == "" {
@@ -174,7 +181,8 @@ func (a *App) ListAssistantModels(provider, baseURL string, refresh bool) ([]Ass
 		provider = a.assistantSettings.Provider
 	}
 	if provider != assistant.ProviderGroq && provider != assistant.ProviderOpenRouter &&
-		provider != assistant.ProviderOllama && provider != assistant.ProviderLlamaCpp {
+		provider != assistant.ProviderOllama && provider != assistant.ProviderLlamaCpp &&
+		provider != assistant.ProviderGoogle {
 		return nil, errors.New("неизвестный провайдер ассистента")
 	}
 	if a.ctx == nil {
@@ -190,7 +198,22 @@ func (a *App) ListAssistantModels(provider, baseURL string, refresh bool) ([]Ass
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
 	defer cancel()
-	models, err := assistant.ListModels(ctx, provider, a.assistantKey(provider), baseURL, refresh)
+	var models []assistant.Model
+	var err error
+	if provider == assistant.ProviderGoogle {
+		keys := a.googleKeysSnapshot()
+		if len(keys) == 0 {
+			return nil, errors.New("добавьте Google-ключ в настройках")
+		}
+		for _, key := range keys {
+			models, err = assistant.ListModels(ctx, provider, key, "", refresh)
+			if err == nil {
+				break
+			}
+		}
+	} else {
+		models, err = assistant.ListModels(ctx, provider, a.assistantKey(provider), baseURL, refresh)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +263,11 @@ func (a *App) SendAssistantMessage(text string) error {
 		return errors.New("выберите модель")
 	}
 	key := a.assistantKey(settings.Provider)
-	if key == "" && !assistant.IsLocal(settings.Provider) {
+	if settings.Provider == assistant.ProviderGoogle && a.currentGoogleKey() == "" {
+		a.assistantMu.Unlock()
+		return errors.New("нет доступных Google-ключей. Проверьте ключи в настройках")
+	}
+	if key == "" && settings.Provider != assistant.ProviderGoogle && !assistant.IsLocal(settings.Provider) {
 		a.assistantMu.Unlock()
 		return errors.New("укажите API-ключ в настройках ассистента")
 	}
@@ -288,7 +315,12 @@ func (a *App) SendAssistantMessage(text string) error {
 				})
 			}
 		}
-		err := assistant.Run(ctx, settings, key, &history, a.assistantTools(), emit)
+		var err error
+		if settings.Provider == assistant.ProviderGoogle {
+			err = assistant.RunWithRotator(ctx, settings, &appGoogleRotator{a: a}, &history, a.assistantTools(), emit)
+		} else {
+			err = assistant.Run(ctx, settings, key, &history, a.assistantTools(), emit)
+		}
 		if err != nil {
 			message := err.Error()
 			detail := ""

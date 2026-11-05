@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -52,6 +53,8 @@ func ListModels(ctx context.Context, provider, apiKey, baseURL string, force boo
 		models, err = fetchOllamaModels(ctx, baseURL)
 	case ProviderLlamaCpp:
 		models, err = fetchLlamaCppModels(ctx, baseURL)
+	case ProviderGoogle:
+		models, err = fetchGoogleModels(ctx, apiKey)
 	default:
 		models, err = fetchGroqModels(ctx, apiKey)
 	}
@@ -193,6 +196,74 @@ func fetchOllamaShow(ctx context.Context, host, id string) (tools bool, contextL
 		}
 	}
 	return tools, contextLength, len(payload.Capabilities) > 0
+}
+
+func fetchGoogleModels(ctx context.Context, apiKey string) ([]Model, error) {
+	if strings.TrimSpace(apiKey) == "" {
+		return nil, fmt.Errorf("google: не задан API-ключ")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, googleModelsURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("x-goog-api-key", apiKey)
+	req.Header.Set("User-Agent", "mvp-test-assistant")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, &APIError{Status: resp.StatusCode, Body: extractErrorBody(raw)}
+	}
+	var payload struct {
+		Models []struct {
+			Name                       string   `json:"name"`
+			DisplayName                string   `json:"displayName"`
+			InputTokenLimit            int      `json:"inputTokenLimit"`
+			SupportedGenerationMethods []string `json:"supportedGenerationMethods"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	priority := map[string]int{
+		"gemini-3.5-flash-lite": 0,
+		"gemini-3.1-flash-lite": 1,
+		"gemini-3.8-flash":      2,
+		"gemini-3.6-flash":      3,
+	}
+	out := make([]Model, 0)
+	for _, m := range payload.Models {
+		if !contains(m.SupportedGenerationMethods, "generateContent") {
+			continue
+		}
+		id := strings.TrimPrefix(m.Name, "models/")
+		name := m.DisplayName
+		if name == "" {
+			name = id
+		}
+		out = append(out, Model{
+			ID: id, Name: name, Provider: ProviderGoogle,
+			ContextLength: m.InputTokenLimit, SupportsTools: true, Free: true,
+			Privacy: "Google AI Studio: free-tier запросы могут использоваться для улучшения продуктов",
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		pi, iok := priority[out[i].ID]
+		pj, jok := priority[out[j].ID]
+		switch {
+		case iok && !jok:
+			return true
+		case !iok && jok:
+			return false
+		case iok && jok && pi != pj:
+			return pi < pj
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out, nil
 }
 
 func fetchLlamaCppModels(ctx context.Context, baseURL string) ([]Model, error) {
