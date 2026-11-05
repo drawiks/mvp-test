@@ -152,7 +152,11 @@ func (a *App) assistantTools() []assistant.Tool {
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				expr := stringArg(args, "expression")
 				if err := formula.Validate(expr, a.varStore.AllowedNames()); err != nil {
-					return map[string]any{"valid": false, "error": err.Error()}, nil
+					result := map[string]any{"valid": false, "error": err.Error()}
+					if hint := formulaValidationHint(err); hint != "" {
+						result["hint"] = hint
+					}
+					return result, nil
 				}
 				return map[string]any{"valid": true}, nil
 			},
@@ -227,6 +231,9 @@ func (a *App) assistantTools() []assistant.Tool {
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				expr := stringArg(args, "expression")
 				if err := formula.Validate(expr, a.varStore.AllowedNames()); err != nil {
+					if hint := formulaValidationHint(err); hint != "" {
+						return nil, fmt.Errorf("формула не прошла валидацию: %v. %s", err, hint)
+					}
 					return nil, fmt.Errorf("формула не прошла валидацию: %v", err)
 				}
 				name := stringArg(args, "name")
@@ -595,6 +602,20 @@ func intArg(args map[string]any, key string) (int, error) {
 		return v, nil
 	default:
 		return 0, fmt.Errorf("параметр %s должен быть числом", key)
+	}
+}
+
+func formulaValidationHint(err error) string {
+	lower := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(lower, "bool"):
+		return "Логическое условие нельзя умножать или складывать с числом. Используй if condition { A } else { B } или condition ? A : B."
+	case strings.Contains(lower, "callnode"):
+		return "Условие записывается как if condition { A } else { B } или condition ? A : B, без if(condition, A, B)."
+	case strings.Contains(lower, "неизвестная переменная"):
+		return "Используй только токены из get_token_catalog или list_variables."
+	default:
+		return ""
 	}
 }
 

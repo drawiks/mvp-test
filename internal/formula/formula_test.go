@@ -493,6 +493,27 @@ func TestValidateRejectsDisallowedOperators(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsBooleanArithmetic(t *testing.T) {
+	if err := Validate("kills * 0.2 + (position > 3) * 0.2", statTokens); err == nil {
+		t.Fatal("boolean arithmetic validated, want error")
+	}
+	if err := Validate("kills * 0.2 + if(position > 3, 1.2, 1.0)", statTokens); err == nil {
+		t.Fatal("function-style if validated, want error")
+	}
+}
+
+func TestValidateAllowsConditionalRoleBonus(t *testing.T) {
+	formulas := []string{
+		"kills * 0.2 + (position > 3 ? 1.2 : 1.0)",
+		"kills * 0.2 + (if position > 3 { 1.2 } else { 1.0 })",
+	}
+	for _, expression := range formulas {
+		if err := Validate(expression, statTokens); err != nil {
+			t.Fatalf("%q rejected: %v", expression, err)
+		}
+	}
+}
+
 func TestStripComments(t *testing.T) {
 	got := stripComments("kills * 2 # бонус\n+ assists # вторая строка\n# весь файл комментарий\n")
 	want := "kills * 2 \n+ assists \n\n"

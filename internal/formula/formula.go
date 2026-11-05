@@ -377,14 +377,25 @@ func LinearToExpression(weights map[string]float64) string {
 }
 
 func Validate(expression string, allowed map[string]bool) error {
-	if strings.TrimSpace(prepareFormula(expression)) == "" {
+	prepared := prepareFormula(expression)
+	if strings.TrimSpace(prepared) == "" {
 		return errf("Формула пустая")
 	}
 	tree, err := parseExpression(expression)
 	if err != nil {
 		return errf("Ошибка в формуле: %v", err)
 	}
-	return checkNode(tree.Node, allowed)
+	if err := checkNode(tree.Node, allowed); err != nil {
+		return err
+	}
+	env := make(map[string]any, len(allowed))
+	for name := range allowed {
+		env[name] = float64(0)
+	}
+	if _, err := expr.Compile(prepared, expr.Env(env), expr.AsFloat64()); err != nil {
+		return errf("Ошибка в формуле: %v", err)
+	}
+	return nil
 }
 
 func checkNode(n ast.Node, allowed map[string]bool) error {

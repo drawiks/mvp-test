@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"math"
 	"os"
@@ -144,6 +145,32 @@ func TestAssistantToolsUseGeminiSchemas(t *testing.T) {
 		if required, ok := tool.Parameters["required"]; ok && required == nil {
 			t.Errorf("%s: required must be a list, not null", tool.Name)
 		}
+	}
+}
+
+func TestValidateFormulaBoolArithmeticHint(t *testing.T) {
+	a := fixture(t)
+	var validate assistant.Tool
+	for _, tool := range a.assistantTools() {
+		if tool.Name == "validate_formula" {
+			validate = tool
+			break
+		}
+	}
+	if validate.Run == nil {
+		t.Fatal("validate_formula tool missing")
+	}
+	out, err := validate.Run(context.Background(), map[string]any{"expression": "kills * 0.2 + (position > 3) * 0.2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, ok := out.(map[string]any)
+	if !ok || result["valid"] != false {
+		t.Fatalf("result %#v", out)
+	}
+	hint, _ := result["hint"].(string)
+	if !strings.Contains(hint, "if condition") {
+		t.Fatalf("hint %q", hint)
 	}
 }
 
