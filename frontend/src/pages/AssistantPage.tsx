@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Copy, Eraser, Loader2, RefreshCw, Send, Square, Trash2 } from "lucide-react";
+import { Bot, Copy, Eraser, Loader2, RefreshCw, Send, Square } from "lucide-react";
 import { toast } from "sonner";
 import * as Bindings from "../../wailsjs/go/main/App";
 import type { main } from "../../wailsjs/go/models";
@@ -58,8 +58,6 @@ function limitsLabel(l: main.AssistantLimits | null, provider: string): string {
 export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEditor }: Props) {
   const [settings, setSettings] = useState<main.AssistantSettings | null>(null);
   const [models, setModels] = useState<main.AssistantModel[]>([]);
-  const [groqKey, setGroqKey] = useState("");
-  const [openRouterKey, setOpenRouterKey] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -69,7 +67,8 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   const [proposal, setProposal] = useState<main.AssistantProposal | null>(null);
   const [diff, setDiff] = useState<main.FormulaDiff | null>(null);
   const [limits, setLimits] = useState<main.AssistantLimits | null>(null);
-  const [waitInfo, setWaitInfo] = useState<{ seconds: number; reason: string } | null>(null);
+  const [waitInfo, setWaitInfo] = useState<{ until: number; seconds: number; reason: string } | null>(null);
+  const [waitNow, setWaitNow] = useState(Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const refreshLimits = async () => {
@@ -135,8 +134,11 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       }
     })();
 
-    onEvent("assistantWait", (payload: { seconds?: number; reason?: string } | null) => {
-      setWaitInfo({ seconds: payload?.seconds ?? 0, reason: payload?.reason ?? "" });
+    onEvent("assistantWait", (payload: { seconds?: number; until?: number; reason?: string } | null) => {
+      const seconds = payload?.seconds ?? 0;
+      const until = payload?.until ?? Date.now() + seconds * 1000;
+      setWaitNow(Date.now());
+      setWaitInfo({ until, seconds, reason: payload?.reason ?? "" });
     });
     onEvent("assistantDelta", (payload: { text?: string } | null) => {
       setWaitInfo(null);
@@ -210,33 +212,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streaming]);
 
-  const saveSettings = async () => {
-    if (!settings) return;
-    try {
-      await persist(settings, { groq: groqKey, openrouter: openRouterKey });
-      setGroqKey("");
-      setOpenRouterKey("");
-      await reloadModels(settings.provider, localURL(settings, settings.provider));
-      await refreshLimits();
-      toast.success("Настройки ассистента сохранены");
-    } catch (e) {
-      setError(String(e));
-    }
-  };
-
-  const testConnection = async () => {
-    if (!settings) return;
-    try {
-      await persist(settings);
-      await Bindings.TestAssistantConnection();
-      await refreshLimits();
-      toast.success("Подключение работает");
-      setError("");
-    } catch (e) {
-      setError(String(e));
-      toast.error(String(e));
-    }
-  };
+  useEffect(() => {
+    if (!waitInfo) return;
+    setWaitNow(Date.now());
+    const id = setInterval(() => setWaitNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [waitInfo]);
 
   const changeProvider = async (provider: string) => {
     if (!settings) return;
@@ -324,7 +305,6 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
 
   const currentModel = models.find((m) => m.id === settings?.model);
   const isLocal = settings?.provider === "ollama" || settings?.provider === "llamacpp";
-  const keySet = settings?.provider === "openrouter" ? settings?.hasOpenRouterKey : settings?.hasGroqKey;
   const providerLabel = PROVIDER_LABEL[settings?.provider ?? ""] ?? "Ассистент";
   const limitText = isLocal ? "" : limitsLabel(limits, settings?.provider ?? "");
   const limitLow =
@@ -368,11 +348,11 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       </div>
 
       {settings && (
-        <div className="grid gap-2 rounded-lg border border-border bg-card/40 p-3 md:grid-cols-[180px_1fr_auto]">
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card/40 p-3">
           <div className="space-y-1">
             <label className="label-caps">Провайдер</label>
             <Select value={settings.provider} onValueChange={(v) => void changeProvider(v)}>
-              <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-52"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="groq">GroqCloud</SelectItem>
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
@@ -381,7 +361,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
+          <div className="min-w-72 flex-1 space-y-1">
             <label className="label-caps">{isLocal ? "Локальная модель" : "Бесплатная модель"}</label>
             <Select value={settings.model} onValueChange={(v) => void changeModel(v)}>
               <SelectTrigger className="h-8 w-full">
@@ -399,113 +379,24 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
               </SelectContent>
             </Select>
             {currentModel?.note && <p className="text-[10px] text-muted-foreground">{currentModel.note}</p>}
-            {currentModel?.privacy && <p className="text-[10px] text-muted-foreground">{currentModel.privacy}</p>}
-            {isLocal && currentModel && !currentModel.supportsTools && (
-              <p className="text-[10px] text-destructive">Модель не поддерживает tool calling.</p>
-            )}
-            {settings.provider === "llamacpp" && (
-              <p className="text-[10px] text-amber-300">
-                Запускайте llama-server с `--jinja`; для стабильного id используйте `--alias`.
-              </p>
-            )}
           </div>
-          {!isLocal && (
-            <div className="flex items-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => void reloadModels(settings.provider, "", true)} disabled={loadingModels}>
-                <RefreshCw className={cn("mr-1.5 size-3.5", loadingModels && "animate-spin")} /> Обновить
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => void refreshLimits()}>Лимиты</Button>
-            </div>
-          )}
-
-          <div className="space-y-1 md:col-span-3">
-            {isLocal ? (
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="min-w-72 flex-1 space-y-1">
-                  <label className="label-caps">URL сервера</label>
-                  <Input
-                    value={settings.provider === "ollama" ? settings.ollamaUrl : settings.llamaCppUrl}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        ...(settings.provider === "ollama"
-                          ? { ollamaUrl: e.target.value }
-                          : { llamaCppUrl: e.target.value }),
-                      })
-                    }
-                    placeholder={DEFAULT_URL[settings.provider]}
-                    className="h-8"
-                  />
-                </div>
-                <Button size="sm" onClick={() => void saveSettings()}>Сохранить</Button>
-                <Button variant="outline" size="sm" onClick={() => void testConnection()}>Проверить</Button>
-                <Button variant="outline" size="sm" onClick={() => void reloadModels(settings.provider, localURL(settings, settings.provider), true)} disabled={loadingModels}>
-                  <RefreshCw className={cn("mr-1.5 size-3.5", loadingModels && "animate-spin")} /> Модели
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <label className="label-caps">
-                  API-ключ {providerLabel}
-                  {keySet && <span className="ml-2 normal-case text-radiant">сохранён</span>}
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <Input
-                    type="password"
-                    value={settings.provider === "groq" ? groqKey : openRouterKey}
-                    onChange={(e) => (settings.provider === "groq" ? setGroqKey(e.target.value) : setOpenRouterKey(e.target.value))}
-                    placeholder={keySet ? "оставьте пустым, чтобы не менять" : "вставьте API-ключ"}
-                    className="h-8 max-w-md flex-1"
-                  />
-                  <Button size="sm" onClick={() => void saveSettings()}>Сохранить</Button>
-                  <Button variant="outline" size="sm" onClick={() => void testConnection()}>Проверить</Button>
-                  {keySet && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={async () => {
-                        await Bindings.ClearAssistantKey(settings.provider);
-                        const s = await Bindings.GetAssistantSettings();
-                        setSettings(s);
-                        toast.success("Ключ удалён");
-                      }}
-                    >
-                      <Trash2 className="mr-1.5 size-3.5" /> Удалить ключ
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-            <label className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={settings.sendPlayerNames}
-                onChange={(e) => {
-                  const next = { ...settings, sendPlayerNames: e.target.checked };
-                  setSettings(next);
-                  void persist(next).catch((err) => setError(String(err)));
-                }}
-              />
-              Отправлять имена игроков и Steam ID (по умолчанию маскируются)
-            </label>
-            {settings.provider === "openrouter" && (
-              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-200">
-                OpenRouter free-модели: часть маршрутов может использовать данные для обучения. Не отправляйте секретные формулы; имена по умолчанию маскируются.
-              </div>
-            )}
-            {isLocal && (
-              <div className="rounded-md border border-radiant/30 bg-radiant/10 p-2 text-[11px] text-radiant">
-                Локальный сервер: данные матча и формулы не покидают компьютер.
-              </div>
-            )}
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => void reloadModels(settings.provider, localURL(settings, settings.provider), true)}
+            disabled={loadingModels}
+            title="Обновить список моделей"
+          >
+            <RefreshCw className={cn("size-3.5", loadingModels && "animate-spin")} />
+          </Button>
         </div>
       )}
-
       {waitInfo && (
         <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-sm text-amber-200">
-          Лимит Groq: ждём {waitInfo.seconds} с… {waitInfo.reason === "tokens" ? "(токены)" : "(запросы)"}
+          {Math.max(0, Math.ceil((waitInfo.until - waitNow) / 1000)) > 0
+            ? `Лимит Groq: ждём ${Math.max(0, Math.ceil((waitInfo.until - waitNow) / 1000))} с… ${waitInfo.reason === "tokens" ? "(токены)" : "(запросы)"}`
+            : "Лимит Groq: продолжаем…"}
         </div>
       )}
 

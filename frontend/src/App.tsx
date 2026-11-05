@@ -8,21 +8,21 @@ import HomePage from "@/pages/HomePage";
 import FormulasPage from "@/pages/FormulasPage";
 import VariablesPage from "@/pages/VariablesPage";
 import AssistantPage from "@/pages/AssistantPage";
+import SettingsPage from "@/pages/SettingsPage";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 type PendingFormula = { name: string; description: string; expression: string; nonce: number };
 
-const NAV: { id: "home" | "formulas" | "variables" | "assistant"; label: string }[] = [
+const NAV: { id: "home" | "formulas" | "variables" | "assistant" | "settings"; label: string }[] = [
   { id: "home", label: "Главная" },
   { id: "formulas", label: "Формулы" },
   { id: "variables", label: "Переменные" },
   { id: "assistant", label: "Ассистент" },
+  { id: "settings", label: "Настройки" },
 ];
 
 export default function App() {
@@ -31,12 +31,10 @@ export default function App() {
   const [activeId, setActiveId] = useState("");
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
-  const [showSettings, setShowSettings] = useState(false);
-  const [parserURL, setParserURL] = useState("");
-  const [parserEngine, setParserEngine] = useState("odota");
+  const [showUpdates, setShowUpdates] = useState(false);
   const [loading, setLoading] = useState(true);
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
-  const [page, setPage] = useState<"home" | "formulas" | "variables" | "assistant">("home");
+  const [page, setPage] = useState<"home" | "formulas" | "variables" | "assistant" | "settings">("home");
   const [pendingFormula, setPendingFormula] = useState<PendingFormula | null>(null);
   const [appVersion, setAppVersion] = useState("");
   const [update, setUpdate] = useState<main.UpdateInfo | null>(null);
@@ -47,17 +45,13 @@ export default function App() {
   const [updateError, setUpdateError] = useState("");
 
   const refreshPresets = async () => {
-    const [list, active, url, engine, ver] = await Promise.all([
+    const [list, active, ver] = await Promise.all([
       Bindings.ListPresets(),
       Bindings.ActivePresetID(),
-      Bindings.GetParserURL(),
-      Bindings.GetParserEngine(),
       Bindings.GetAppVersion(),
     ]);
     setPresets(list);
     setActiveId(active);
-    setParserURL(url);
-    setParserEngine(engine);
     setAppVersion(ver);
   };
 
@@ -130,16 +124,6 @@ export default function App() {
     };
   }, []);
 
-  const saveSettings = async () => {
-    try {
-      await Bindings.SetParserEngine(parserEngine);
-      if (parserEngine !== "manta") await Bindings.SetParserURL(parserURL);
-      setShowSettings(false);
-    } catch (e) {
-      setError(String(e));
-    }
-  };
-
   useEffect(() => {
     if (typeof window === "undefined" || !window.runtime?.OnFileDrop) return;
     window.runtime.OnFileDrop((_x, _y, paths) => {
@@ -206,57 +190,29 @@ export default function App() {
               <FolderOpen className="mr-1.5 size-3.5" /> Открыть
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="size-7" onClick={() => setShowSettings((s) => !s)}>
+          <Button variant="ghost" size="icon" className="size-7" onClick={() => setShowUpdates((s) => !s)} title="Версия и обновления">
             <Settings className="size-4" />
           </Button>
         </div>
       </header>
 
-      {showSettings && (
-        <>
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-4 py-2">
-            <label className="text-xs text-muted-foreground">Движок:</label>
-            <Select value={parserEngine} onValueChange={setParserEngine}>
-              <SelectTrigger className="h-8 w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="odota">odota-cli (HTTP)</SelectItem>
-                <SelectItem value="manta">manta-cli (локально)</SelectItem>
-              </SelectContent>
-            </Select>
-            <label className="text-xs text-muted-foreground">URL парсера:</label>
-            <Input
-              value={parserURL}
-              onChange={(e) => setParserURL(e.target.value)}
-              disabled={parserEngine === "manta"}
-              className="h-8 w-80"
-              placeholder={parserEngine === "manta" ? "не используется" : "http://localhost:5600"}
-            />
-            <Button size="sm" onClick={() => void saveSettings()}>
-              Сохранить
+      {showUpdates && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-4 py-2">
+          <span className="text-xs text-muted-foreground">Версия:</span>
+          <span className="font-mono text-xs">{appVersion || "dev"}</span>
+          <Button variant="outline" size="sm" onClick={() => void checkForUpdates(true)} disabled={checkingUpdate}>
+            {checkingUpdate && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+            Проверить обновления
+          </Button>
+          {update?.available ? (
+            <Button size="sm" onClick={() => setShowUpdate(true)}>
+              Доступна v{update.latestVersion}
             </Button>
-            {parserEngine === "manta" && (
-              <span className="text-[11px] text-muted-foreground">.dem парсится локально, Docker не нужен</span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-b border-border bg-background/60 px-4 py-2">
-            <span className="text-xs text-muted-foreground">Версия:</span>
-            <span className="font-mono text-xs">{appVersion || "dev"}</span>
-            <Button variant="outline" size="sm" onClick={() => void checkForUpdates(true)} disabled={checkingUpdate}>
-              {checkingUpdate && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-              Проверить обновления
-            </Button>
-            {update?.available ? (
-              <Button size="sm" onClick={() => setShowUpdate(true)}>
-                Доступна v{update.latestVersion}
-              </Button>
-            ) : updateChecked ? (
-              <span className="text-[11px] text-muted-foreground">Обновлений нет</span>
-            ) : null}
-            {updateError && <span className="text-[11px] text-destructive">{updateError}</span>}
-          </div>
-        </>
+          ) : updateChecked ? (
+            <span className="text-[11px] text-muted-foreground">Обновлений нет</span>
+          ) : null}
+          {updateError && <span className="text-[11px] text-destructive">{updateError}</span>}
+        </div>
       )}
 
       {loading ? (
@@ -282,6 +238,8 @@ export default function App() {
             setPage("formulas");
           }}
         />
+      ) : page === "settings" ? (
+        <SettingsPage />
       ) : views && views.length > 0 ? (
         <HomePage views={views} presets={presets} activeId={activeId} matchInfo={matchInfo} onChange={refreshPresets} />
       ) : (

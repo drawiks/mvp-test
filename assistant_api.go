@@ -283,7 +283,10 @@ func (a *App) SendAssistantMessage(text string) error {
 					runtime.EventsEmit(a.ctx, "assistantLimits", toAssistantLimits(*e.Rate))
 				}
 			case "rateWait":
-				runtime.EventsEmit(a.ctx, "assistantWait", map[string]any{"seconds": e.WaitSeconds, "reason": e.WaitReason})
+				until := e.WaitUntil.UnixMilli()
+				runtime.EventsEmit(a.ctx, "assistantWait", map[string]any{
+					"seconds": e.WaitSeconds, "until": until, "reason": e.WaitReason,
+				})
 			}
 		}
 		err := assistant.Run(ctx, settings, key, &history, a.assistantTools(), emit)

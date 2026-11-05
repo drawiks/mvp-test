@@ -111,6 +111,7 @@ type Event struct {
 	Proposal    *Proposal
 	Rate        *RateLimit
 	WaitSeconds int
+	WaitUntil   time.Time
 	WaitReason  string
 	Err         error
 }

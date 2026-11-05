@@ -81,7 +81,10 @@ func (l *RateLimiter) Wait(ctx context.Context, estimatedTokens int, emit func(E
 		return fmt.Errorf("лимит Groq: следующий запрос возможен через %s", wait.Round(time.Second))
 	}
 	if emit != nil {
-		emit(Event{Type: "rateWait", WaitSeconds: int(math.Ceil(wait.Seconds())), WaitReason: reason})
+		emit(Event{
+			Type: "rateWait", WaitSeconds: int(math.Ceil(wait.Seconds())),
+			WaitUntil: l.now().Add(wait), WaitReason: reason,
+		})
 	}
 	if err := l.sleep(ctx, wait); err != nil {
 		return err
@@ -122,7 +125,10 @@ func (l *RateLimiter) RetryDelay(err error, rate *RateLimit, emitted bool) (time
 
 func (l *RateLimiter) WaitForRetry(ctx context.Context, delay time.Duration, emit func(Event)) error {
 	if emit != nil {
-		emit(Event{Type: "rateWait", WaitSeconds: int(math.Ceil(delay.Seconds())), WaitReason: "rate"})
+		emit(Event{
+			Type: "rateWait", WaitSeconds: int(math.Ceil(delay.Seconds())),
+			WaitUntil: l.now().Add(delay), WaitReason: "rate",
+		})
 	}
 	if err := l.sleep(ctx, delay); err != nil {
 		return err
