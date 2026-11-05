@@ -37,7 +37,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   const showProposal = async (p: main.AssistantProposal) => {
     setProposal(p);
     try {
-      const current = await Bindings.GetActiveFormulaExpression();
+      const current = p.currentExpression || (await Bindings.GetActiveFormulaExpression());
       setDiff(await Bindings.DiffFormula(current, p.expression));
     } catch {
       setDiff(null);
@@ -129,7 +129,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       });
     });
     onEvent("assistantProposal", (payload: main.AssistantProposal | null) => {
-      if (payload) void showProposal(payload);
+      if (payload) {
+        void showProposal(payload);
+      } else {
+        setProposal(null);
+        setDiff(null);
+      }
     });
     onEvent("assistantRetry", (payload: { message?: string } | null) => {
       setRetryMessage(payload?.message ?? "Повторяю запрос к Gemini…");
@@ -216,6 +221,30 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       await onChange();
       toast.success("Формула сохранена");
       onOpenFormulas();
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
+
+  const approveAction = async () => {
+    if (!proposal?.actionId) return;
+    try {
+      await Bindings.ApproveAssistantAction(proposal.actionId);
+      setProposal(null);
+      setDiff(null);
+      toast.success(proposal.mode === "update" ? "Формула обновлена" : "Формула создана и активирована");
+      await onChange();
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
+
+  const rejectAction = async () => {
+    if (!proposal?.actionId) return;
+    try {
+      await Bindings.RejectAssistantAction(proposal.actionId);
+      setProposal(null);
+      setDiff(null);
     } catch (e) {
       toast.error(String(e));
     }
@@ -357,16 +386,32 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="text-sm font-semibold">{proposal.name}</div>
+              {proposal.pending && (
+                <div className="text-[11px] text-gold">
+                  {proposal.mode === "update"
+                    ? `Обновить: ${proposal.targetName || proposal.name}`
+                    : "Создать новую формулу и сделать активной"}
+                </div>
+              )}
               {proposal.description && <div className="text-[11px] text-muted-foreground">{proposal.description}</div>}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => void navigator.clipboard.writeText(proposal.expression)}>
-                <Copy className="mr-1.5 size-3.5" /> Копировать
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => onApplyToEditor(proposal)}>
-                Применить в редактор
-              </Button>
-              <Button size="sm" onClick={() => void saveProposal()}>Сохранить как формулу</Button>
+              {proposal.pending ? (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => void rejectAction()}>Отклонить</Button>
+                  <Button size="sm" onClick={() => void approveAction()}>Подтвердить</Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => void navigator.clipboard.writeText(proposal.expression)}>
+                    <Copy className="mr-1.5 size-3.5" /> Копировать
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => onApplyToEditor(proposal)}>
+                    Применить в редактор
+                  </Button>
+                  <Button size="sm" onClick={() => void saveProposal()}>Сохранить как формулу</Button>
+                </>
+              )}
             </div>
           </div>
           {diff && (

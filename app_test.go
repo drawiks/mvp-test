@@ -174,6 +174,101 @@ func TestValidateFormulaBoolArithmeticHint(t *testing.T) {
 	}
 }
 
+func TestAssistantActionCreatesAndActivates(t *testing.T) {
+	a := fixture(t)
+	a.assistantSettings = assistant.DefaultSettings()
+
+	if _, err := a.stageAssistantFormulaChange(map[string]any{"expression": "kills * 2 + assists"}); err != nil {
+		t.Fatal(err)
+	}
+	action := a.assistantProposal
+	if action == nil || !action.Pending || action.Mode != "create" || !action.Activate {
+		t.Fatalf("action %+v", action)
+	}
+	if _, ok := a.store.Get(action.PresetID); ok {
+		t.Fatal("staged formula must not be saved before approval")
+	}
+	if err := a.ApproveAssistantAction(action.ActionID); err != nil {
+		t.Fatal(err)
+	}
+	saved, ok := a.store.Get(action.PresetID)
+	if !ok || saved.Expression != "kills * 2 + assists" {
+		t.Fatalf("saved %+v ok=%v", saved, ok)
+	}
+	if a.store.Active().ID != action.PresetID {
+		t.Fatalf("active %q, want %q", a.store.Active().ID, action.PresetID)
+	}
+	if a.assistantProposal != nil {
+		t.Fatal("pending action must be cleared")
+	}
+}
+
+func TestAssistantActionUpdatesActiveUserPreset(t *testing.T) {
+	a := fixture(t)
+	a.assistantSettings = assistant.DefaultSettings()
+	a.store.Upsert(formula.Preset{ID: "user-p", Name: "User formula", Kind: "expression", Expression: "kills"})
+	a.store.SetActive("user-p")
+
+	if _, err := a.stageAssistantFormulaChange(map[string]any{"expression": "kills * 2"}); err != nil {
+		t.Fatal(err)
+	}
+	action := a.assistantProposal
+	if action == nil || action.Mode != "update" || action.PresetID != "user-p" {
+		t.Fatalf("action %+v", action)
+	}
+	if got, _ := a.store.Get("user-p"); got.Expression != "kills" {
+		t.Fatalf("formula changed before approval: %+v", got)
+	}
+	if err := a.ApproveAssistantAction(action.ActionID); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := a.store.Get("user-p")
+	if !ok || got.Expression != "kills * 2" || a.store.Active().ID != "user-p" {
+		t.Fatalf("updated %+v ok=%v active=%s", got, ok, a.store.Active().ID)
+	}
+}
+
+func TestAssistantActionRejectsAndStale(t *testing.T) {
+	a := fixture(t)
+	a.assistantSettings = assistant.DefaultSettings()
+	a.store.Upsert(formula.Preset{ID: "user-p", Name: "User formula", Kind: "expression", Expression: "kills"})
+	a.store.SetActive("user-p")
+
+	if _, err := a.stageAssistantFormulaChange(map[string]any{"expression": "kills * 2"}); err != nil {
+		t.Fatal(err)
+	}
+	action := a.assistantProposal
+	if err := a.RejectAssistantAction(action.ActionID); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := a.store.Get("user-p"); got.Expression != "kills" {
+		t.Fatalf("rejected action changed formula: %+v", got)
+	}
+
+	if _, err := a.stageAssistantFormulaChange(map[string]any{"expression": "kills * 3"}); err != nil {
+		t.Fatal(err)
+	}
+	stale := a.assistantProposal
+	a.store.SetActive("standard_v2")
+	if err := a.ApproveAssistantAction(stale.ActionID); err == nil {
+		t.Fatal("stale action must be rejected")
+	}
+	if got, _ := a.store.Get("user-p"); got.Expression != "kills" {
+		t.Fatalf("stale action changed formula: %+v", got)
+	}
+}
+
+func TestAssistantActionRefusesExplicitBuiltinUpdate(t *testing.T) {
+	a := fixture(t)
+	a.assistantSettings = assistant.DefaultSettings()
+	_, err := a.stageAssistantFormulaChange(map[string]any{
+		"mode": "update", "expression": "kills * 2",
+	})
+	if err == nil || !strings.Contains(err.Error(), "встроенную") {
+		t.Fatalf("error %v", err)
+	}
+}
+
 func TestAssistantMvpPodium(t *testing.T) {
 	a := fixture(t)
 	a.assistantSettings = assistant.DefaultSettings()

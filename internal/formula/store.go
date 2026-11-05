@@ -36,6 +36,9 @@ func newID() string {
 	return hex.EncodeToString(b)
 }
 
+// NewID returns a random preset or action identifier.
+func NewID() string { return newID() }
+
 // Store persists presets as JSON at a user path.
 type Store struct {
 	path     string

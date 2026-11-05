@@ -134,6 +134,10 @@ export function RemovePreset(arg1) {
   return window['go']['main']['App']['RemovePreset'](arg1);
 }
 
+export function RejectAssistantAction(arg1) {
+  return window['go']['main']['App']['RejectAssistantAction'](arg1);
+}
+
 export function RemoveVariable(arg1) {
   return window['go']['main']['App']['RemoveVariable'](arg1);
 }
@@ -148,6 +152,10 @@ export function SendAssistantMessage(arg1) {
 
 export function AddGoogleKey(arg1) {
   return window['go']['main']['App']['AddGoogleKey'](arg1);
+}
+
+export function ApproveAssistantAction(arg1) {
+  return window['go']['main']['App']['ApproveAssistantAction'](arg1);
 }
 
 export function RemoveGoogleKey(arg1) {

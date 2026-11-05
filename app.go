@@ -567,6 +567,9 @@ func (a *App) ValidateExpression(expression string) error {
 func (a *App) Recompute() { a.EmitResult() }
 
 func (a *App) EmitResult() {
+	if a.ctx == nil {
+		return
+	}
 	a.resultMu.Lock()
 	defer a.resultMu.Unlock()
 	if a.result == nil {

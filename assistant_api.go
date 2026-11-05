@@ -30,9 +30,17 @@ type AssistantModel struct {
 }
 
 type AssistantProposal struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Expression  string `json:"expression"`
+	Name              string `json:"name"`
+	Description       string `json:"description"`
+	Expression        string `json:"expression"`
+	ActionID          string `json:"actionId,omitempty"`
+	Pending           bool   `json:"pending,omitempty"`
+	Mode              string `json:"mode,omitempty"`
+	PresetID          string `json:"presetId,omitempty"`
+	TargetName        string `json:"targetName,omitempty"`
+	CurrentExpression string `json:"currentExpression,omitempty"`
+	Activate          bool   `json:"activate,omitempty"`
+	BaseActiveID      string `json:"baseActiveId,omitempty"`
 }
 
 func (a *App) GetAssistantSettings() AssistantSettings {

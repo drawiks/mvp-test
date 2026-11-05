@@ -161,6 +161,14 @@ export namespace main {
 	    name: string;
 	    description: string;
 	    expression: string;
+	    actionId?: string;
+	    pending?: boolean;
+	    mode?: string;
+	    presetId?: string;
+	    targetName?: string;
+	    currentExpression?: string;
+	    activate?: boolean;
+	    baseActiveId?: string;
 
 	    static createFrom(source: any = {}) {
 	        return new AssistantProposal(source);
@@ -171,6 +179,14 @@ export namespace main {
 	        this.name = source["name"];
 	        this.description = source["description"];
 	        this.expression = source["expression"];
+	        this.actionId = source["actionId"];
+	        this.pending = source["pending"];
+	        this.mode = source["mode"];
+	        this.presetId = source["presetId"];
+	        this.targetName = source["targetName"];
+	        this.currentExpression = source["currentExpression"];
+	        this.activate = source["activate"];
+	        this.baseActiveId = source["baseActiveId"];
 	    }
 	}
 	export class AssistantSettings {

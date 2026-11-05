@@ -221,6 +221,20 @@ func (a *App) assistantTools() []assistant.Tool {
 			},
 		},
 		{
+			Name:        "request_formula_change",
+			Description: "Запросить создание или обновление формулы с подтверждением пользователя. Ничего не сохраняет до подтверждения. Приоритет — обновление активной пользовательской формулы; встроенную формулу можно только скопировать.",
+			Parameters: objectSchema(map[string]any{
+				"expression":  map[string]any{"type": "string"},
+				"name":        map[string]any{"type": "string"},
+				"description": map[string]any{"type": "string"},
+				"mode":        map[string]any{"type": "string", "enum": []string{"auto", "update", "create"}, "description": "auto: обновить активную пользовательскую формулу или создать копию встроенной"},
+				"preset_id":   map[string]any{"type": "string", "description": "необязательно: какую пользовательскую формулу обновить"},
+			}, "expression"),
+			Run: func(ctx context.Context, args map[string]any) (any, error) {
+				return a.stageAssistantFormulaChange(args)
+			},
+		},
+		{
 			Name:        "propose_formula",
 			Description: "Предложить формулу после validate_formula и preview_formula. Сохраняет только предложение, не меняет пресеты.",
 			Parameters: objectSchema(map[string]any{

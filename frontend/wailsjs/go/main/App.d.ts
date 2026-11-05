@@ -5,6 +5,8 @@ import {main} from '../models';
 
 export function ActivePresetID():Promise<string>;
 
+export function ApproveAssistantAction(arg1:string):Promise<void>;
+
 export function CancelAssistant():Promise<void>;
 
 export function CancelParse():Promise<void>;
@@ -68,6 +70,8 @@ export function ParseReplay(arg1:string):Promise<void>;
 export function Recompute():Promise<void>;
 
 export function RemovePreset(arg1:string):Promise<boolean>;
+
+export function RejectAssistantAction(arg1:string):Promise<void>;
 
 export function RemoveVariable(arg1:string):Promise<void>;
 
