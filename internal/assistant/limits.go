@@ -6,9 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+)
+
+var (
+	tpmLimitRe     = regexp.MustCompile(`(?i)limit\s+(\d+)`)
+	tpmRequestedRe = regexp.MustCompile(`(?i)requested\s+(\d+)`)
+	retryAfterRe   = regexp.MustCompile(`(?i)retry after\s+(\d+)`)
 )
 
 func parseRate(h http.Header, provider string) *RateLimit {
@@ -83,6 +90,29 @@ func FriendlyError(err error) string {
 	if !errors.As(err, &api) {
 		return err.Error()
 	}
+	lower := strings.ToLower(api.Body)
+	if strings.Contains(lower, "request too large") ||
+		strings.Contains(lower, "input tokens per minute") ||
+		strings.Contains(lower, "tokens per minute") ||
+		strings.Contains(lower, "itpm") || strings.Contains(lower, "tpm") {
+		limit, requested, retry := tpmNumbers(api.Body)
+		msg := "Запрос слишком большой для Groq"
+		if limit > 0 && requested > 0 {
+			msg += fmt.Sprintf(": %d токенов при лимите %d в минуту", requested, limit)
+		} else if limit > 0 {
+			msg += fmt.Sprintf(": лимит %d токенов в минуту", limit)
+		}
+		msg += ". Сократите историю"
+		if retry > 0 {
+			msg += fmt.Sprintf(" или повторите через %d сек", retry)
+		} else if api.RetryAfter != "" {
+			msg += " или повторите через " + api.RetryAfter
+		}
+		return msg + "."
+	}
+	if strings.Contains(lower, "context length") || strings.Contains(lower, "maximum context") {
+		return "Запрос превышает контекст модели. Очистите историю или начните новый диалог."
+	}
 	switch api.Status {
 	case http.StatusUnauthorized:
 		return "Неверный API-ключ. Проверьте ключ провайдера."
@@ -117,5 +147,25 @@ func FriendlyError(err error) string {
 		}
 		return "Лимит запросов исчерпан. " + strings.TrimSpace(api.Body)
 	}
-	return api.Error()
+	return "Ошибка провайдера (HTTP " + strconv.Itoa(api.Status) + "): " + truncateText(strings.TrimSpace(api.Body), 240)
+}
+
+func tpmNumbers(body string) (limit, requested, retry int) {
+	if m := tpmLimitRe.FindStringSubmatch(body); len(m) == 2 {
+		limit, _ = strconv.Atoi(m[1])
+	}
+	if m := tpmRequestedRe.FindStringSubmatch(body); len(m) == 2 {
+		requested, _ = strconv.Atoi(m[1])
+	}
+	if m := retryAfterRe.FindStringSubmatch(body); len(m) == 2 {
+		retry, _ = strconv.Atoi(m[1])
+	}
+	return
+}
+
+func truncateText(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }

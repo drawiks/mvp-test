@@ -26,14 +26,14 @@ type assistantPlayerInfo struct {
 	MvpRole     string             `json:"mvp_role,omitempty"`
 	Name        string             `json:"name,omitempty"`
 	SteamID     int64              `json:"steam_id,omitempty"`
-	Stats       map[string]float64 `json:"stats"`
+	Stats       map[string]float64 `json:"stats,omitempty"`
 }
 
 type assistantMatchInfo struct {
 	MatchID     int64                 `json:"match_id"`
 	DurationSec int64                 `json:"duration_sec"`
 	Winner      string                `json:"winner"`
-	Formula     formula.Preset        `json:"formula"`
+	Formula     string                `json:"formula"`
 	Players     []assistantPlayerInfo `json:"players"`
 }
 
@@ -194,12 +194,11 @@ func (a *App) toolMatchContext() (assistantMatchInfo, error) {
 			PlayerID: v.PlayerID, Hero: v.Hero, Team: v.Team, Position: v.Position, Lane: v.Lane,
 			Score: v.Score, GlobalPlace: v.GlobalPlace, TeamPlace: v.TeamPlace, MvpRole: v.MvpRole,
 			Name: optionalName(v.Name, showNames), SteamID: optionalSteamID(v.SteamID, showNames),
-			Stats: compactMatchStats(v.Stats),
 		})
 	}
 	return assistantMatchInfo{
 		MatchID: result.MatchID, DurationSec: result.DurationSec, Winner: result.WinnerTeam(),
-		Formula: a.store.Active(), Players: players,
+		Formula: a.store.Active().Name, Players: players,
 	}, nil
 }
 
@@ -305,25 +304,6 @@ func (a *App) toolCompare(aExpr, bExpr string) (any, error) {
 	return map[string]any{
 		"formula_a": aRanks, "formula_b": bRanks, "rank_changes": changes,
 	}, nil
-}
-
-var compactStats = []string{
-	"kills", "deaths", "assists", "last_hits", "gpm", "xpm", "networth",
-	"healing", "mana_restored", "hero_damage", "damage_taken", "tower_damage",
-	"stun_duration", "save_duration", "purge_count", "shield_duration",
-	"buff_duration", "heal_duration", "heal_value", "time_dead", "gold_lost",
-	"camps_stacked", "rune_pickups", "wisdoms_captured", "watchers_captured",
-	"lotuses_gathered", "courier_kills", "first_blood", "match_duration", "position",
-}
-
-func compactMatchStats(stats map[string]float64) map[string]float64 {
-	out := make(map[string]float64, len(compactStats))
-	for _, key := range compactStats {
-		if value, ok := stats[key]; ok {
-			out[key] = value
-		}
-	}
-	return out
 }
 
 func (a *App) assistantResult() (*model.Result, error) {

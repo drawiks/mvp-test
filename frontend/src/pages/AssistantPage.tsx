@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import MarkdownMessage from "@/components/MarkdownMessage";
 import { cn } from "@/lib/utils";
 
 type ToolEvent = { name: string; args?: string; result?: string };
@@ -30,8 +31,8 @@ function limitsLabel(l: main.AssistantLimits | null, provider: string): string {
     return `${l.freeRequestsLimit - l.freeRequestsRemaining}/${l.freeRequestsLimit} free`;
   }
   const parts: string[] = [];
-  if (l.requestsLimit > 0) parts.push(`${l.requestsRemaining}/${l.requestsLimit} RPD`);
-  if (l.tokensLimit > 0) parts.push(`${Math.round(l.tokensRemaining / 1000)}k/${Math.round(l.tokensLimit / 1000)}k TPM`);
+  if (l.requestsLimit > 0) parts.push(`${Math.min(l.requestsRemaining, l.requestsLimit)}/${l.requestsLimit} RPD`);
+  if (l.tokensLimit > 0) parts.push(`${Math.round(Math.min(l.tokensRemaining, l.tokensLimit) / 1000)}k/${Math.round(l.tokensLimit / 1000)}k TPM`);
   return parts.join(" · ");
 }
 
@@ -45,6 +46,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   const [streaming, setStreaming] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState("");
+  const [errorDetail, setErrorDetail] = useState("");
   const [proposal, setProposal] = useState<main.AssistantProposal | null>(null);
   const [diff, setDiff] = useState<main.FormulaDiff | null>(null);
   const [limits, setLimits] = useState<main.AssistantLimits | null>(null);
@@ -160,9 +162,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     onEvent("assistantLimits", (payload: main.AssistantLimits | null) => {
       if (payload) setLimits(payload);
     });
-    onEvent("assistantDone", (payload: { ok?: boolean; error?: string } | null) => {
+    onEvent("assistantDone", (payload: { ok?: boolean; error?: string; detail?: string } | null) => {
       setStreaming(false);
-      if (!payload?.ok) setError(payload?.error ?? "Ошибка ассистента");
+      if (!payload?.ok) {
+        setError(payload?.error ?? "Ошибка ассистента");
+        setErrorDetail(payload?.detail ?? "");
+      }
       void refreshLimits();
     });
     return () => {
@@ -245,6 +250,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     }
     setInput("");
     setError("");
+    setErrorDetail("");
     setProposal(null);
     setDiff(null);
     setMessages((prev) => [...prev, { role: "user", text, tools: [] }]);
@@ -263,6 +269,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     setProposal(null);
     setDiff(null);
     setError("");
+    setErrorDetail("");
   };
 
   const saveProposal = async () => {
@@ -418,8 +425,15 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       )}
 
       {error && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
-          {error}
+        <div className="space-y-1 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+          <div>{error}</div>
+          {errorDetail && (
+            <details className="text-[11px] text-destructive/80">
+              <summary className="cursor-pointer">Детали провайдера</summary>
+              <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all">{errorDetail}</pre>
+            </details>
+          )}
+          <Button variant="outline" size="sm" onClick={() => void clear()}>Очистить историю</Button>
         </div>
       )}
 
@@ -437,10 +451,10 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
             {messages.map((m, i) => (
               <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
                 <div className={cn(
-                  "max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
-                  m.role === "user" ? "bg-gold/15 text-foreground" : "border border-border bg-card"
+                  "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                  m.role === "user" ? "whitespace-pre-wrap bg-gold/15 text-foreground" : "border border-border bg-card"
                 )}>
-                  {m.text}
+                  {m.role === "assistant" ? <MarkdownMessage text={m.text} /> : m.text}
                   {m.tools.length > 0 && (
                     <div className="mt-2 space-y-1 border-t border-border/60 pt-2">
                       {m.tools.map((t, j) => (

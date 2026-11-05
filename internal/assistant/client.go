@@ -72,7 +72,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		Tools:       defs,
 		ToolChoice:  "auto",
 		Temperature: settings.Temperature,
-		MaxTokens:   2048,
+		MaxTokens:   1024,
 		Stream:      true,
 	})
 	if err != nil {

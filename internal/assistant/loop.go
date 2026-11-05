@@ -15,7 +15,9 @@ const systemPrompt = `Ты — ассистент по разработке MVP-
 4. Учитывай роль и позицию игрока, интерпретируемость и устойчивость формулы, а не только результат одного матча.
 5. Если предлагаешь готовую формулу, вызови propose_formula с полями name, description, expression. Не сохраняй формулу сам.
 6. Не используй токен mana_restored, если текущий матч распарсен не через manta.
-7. Отвечай по-русски, коротко и по делу. Ссылайся на конкретных игроков и числа из инструментов.`
+7. Отвечай по-русски, коротко и по делу. Ссылайся на конкретных игроков и числа из инструментов.
+8. Не вызывай explain_player для всех игроков. Для обзора используй preview_formula, а детально разбирай 1–2 ключевых игроков.
+9. Не повторяй get_match_context и другие тяжёлые вызовы без необходимости.`
 
 // Run executes an assistant turn, including any tool calls, and appends all
 // messages to history.
@@ -27,6 +29,11 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 	if rounds <= 0 {
 		rounds = 6
 	}
+
+	const (
+		maxToolCallsPerRound = 6
+		maxToolResultChars   = 6000
+	)
 
 	byName := make(map[string]Tool, len(tools))
 	for _, tool := range tools {
@@ -47,7 +54,15 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 			return nil
 		}
 
-		for _, call := range answer.ToolCalls {
+		for callIndex, call := range answer.ToolCalls {
+			if callIndex >= maxToolCallsPerRound {
+				result := `{"error":"слишком много вызовов инструментов за один шаг; используй preview_formula и точечные get_player/explain_player"}`
+				if emit != nil {
+					emit(Event{Type: "toolResult", ToolName: call.Function.Name, ToolResult: result})
+				}
+				*history = append(*history, Message{Role: "tool", ToolCallID: call.ID, Name: call.Function.Name, Content: result})
+				continue
+			}
 			tool, ok := byName[call.Function.Name]
 			if !ok {
 				result := fmt.Sprintf(`{"error":"unknown tool %s"}`, call.Function.Name)
@@ -79,6 +94,9 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 					raw, _ = json.Marshal(map[string]string{"error": err.Error()})
 				}
 				result = string(raw)
+			}
+			if len(result) > maxToolResultChars {
+				result = `{"error":"результат инструмента слишком большой; уточните запрос или используйте более точечный инструмент"}`
 			}
 			if emit != nil {
 				emit(Event{Type: "toolResult", ToolName: call.Function.Name, ToolResult: truncate(result, 2000)})

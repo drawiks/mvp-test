@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"mvp/internal/assistant"
@@ -153,6 +154,22 @@ func TestAssistantHistoryRoundtrip(t *testing.T) {
 	h := b.GetAssistantHistory()
 	if len(h.Messages) != 2 || h.Messages[1].Text != "ответ" || h.Proposal == nil || h.Proposal.Expression != "kills" {
 		t.Fatalf("history %+v", h)
+	}
+}
+
+func TestTrimHistoryByBudget(t *testing.T) {
+	history := []assistant.Message{
+		{Role: "user", Content: strings.Repeat("a", 1000)},
+		{Role: "assistant", Content: "old"},
+		{Role: "user", Content: "current question"},
+		{Role: "tool", Content: strings.Repeat("b", 5000)},
+	}
+	got := trimHistoryByBudget(history, 3000)
+	if len(got) == 0 || got[0].Role != "user" || got[0].Content != "current question" {
+		t.Fatalf("history %+v", got)
+	}
+	if len(got[len(got)-1].Content) > 2100 {
+		t.Fatalf("tool result not truncated: %d", len(got[len(got)-1].Content))
 	}
 }
 

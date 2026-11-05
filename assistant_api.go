@@ -205,7 +205,7 @@ func (a *App) SendAssistantMessage(text string) error {
 		a.assistantMu.Unlock()
 		return errors.New("укажите API-ключ в настройках ассистента")
 	}
-	history := trimAssistantHistory(a.assistantHistory, 40)
+	history := trimHistoryByBudget(a.assistantHistory, assistantHistoryBudget(settings.Provider))
 	history = append(history, assistant.Message{Role: "user", Content: text})
 	ctx, cancel := context.WithCancel(a.ctx)
 	generation := a.assistantGeneration
@@ -247,12 +247,17 @@ func (a *App) SendAssistantMessage(text string) error {
 		err := assistant.Run(ctx, settings, key, &history, a.assistantTools(), emit)
 		if err != nil {
 			message := err.Error()
+			detail := ""
 			if errors.Is(err, context.Canceled) {
 				message = "запрос отменён"
 			} else {
 				message = assistant.FriendlyError(err)
+				var apiErr *assistant.APIError
+				if errors.As(err, &apiErr) {
+					detail = apiErr.Body
+				}
 			}
-			runtime.EventsEmit(a.ctx, "assistantDone", map[string]any{"ok": false, "error": message})
+			runtime.EventsEmit(a.ctx, "assistantDone", map[string]any{"ok": false, "error": message, "detail": detail})
 			return
 		}
 		if settings.Provider == assistant.ProviderOpenRouter && key != "" {
@@ -293,6 +298,71 @@ func (a *App) ClearAssistantHistory() {
 	if a.assistantHistoryPath != "" {
 		_ = os.Remove(a.assistantHistoryPath)
 	}
+}
+
+func assistantHistoryBudget(provider string) int {
+	if provider == assistant.ProviderOpenRouter {
+		return 40000
+	}
+	return 18000
+}
+
+func messageChars(m assistant.Message) int {
+	n := len(m.Content) + len(m.Name)
+	for _, call := range m.ToolCalls {
+		n += len(call.Function.Name) + len(call.Function.Arguments)
+	}
+	return n
+}
+
+func historyChars(history []assistant.Message) int {
+	total := 0
+	for _, m := range history {
+		total += messageChars(m)
+	}
+	return total
+}
+
+func trimHistoryByBudget(history []assistant.Message, maxChars int) []assistant.Message {
+	out := trimAssistantHistory(history, 60)
+	if historyChars(out) <= maxChars {
+		return out
+	}
+	for {
+		first := -1
+		for i, m := range out {
+			if m.Role == "user" {
+				first = i
+				break
+			}
+		}
+		if first < 0 {
+			break
+		}
+		next := -1
+		for i := first + 1; i < len(out); i++ {
+			if out[i].Role == "user" {
+				next = i
+				break
+			}
+		}
+		if next < 0 {
+			break
+		}
+		out = out[next:]
+		if historyChars(out) <= maxChars {
+			return out
+		}
+	}
+	for i := range out {
+		if out[i].Role == "tool" && len(out[i].Content) > 2000 {
+			out[i].Content = out[i].Content[:2000] + "…"
+		}
+		if out[i].Role == "assistant" && len(out[i].Content) > 4000 {
+			out[i].Content = out[i].Content[:4000] + "…"
+		}
+	}
+	return out
 }
 
 func trimAssistantHistory(history []assistant.Message, max int) []assistant.Message {

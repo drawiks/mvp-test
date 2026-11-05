@@ -150,3 +150,17 @@ func TestFetchOpenRouterLimits(t *testing.T) {
 		t.Fatalf("rate %+v", r)
 	}
 }
+
+func TestFriendlyErrorRequestTooLarge(t *testing.T) {
+	err := &APIError{
+		Status: 413,
+		Body:   "Request too large for model `qwen/qwen3.8-27b` ... Limit 7000, Requested 11860 ... (retry after 87)",
+	}
+	got := FriendlyError(err)
+	if !strings.Contains(got, "11860") || !strings.Contains(got, "7000") || !strings.Contains(got, "87") {
+		t.Fatalf("message %q", got)
+	}
+	if strings.Contains(got, "console.groq.com") {
+		t.Fatalf("raw billing URL leaked: %q", got)
+	}
+}
