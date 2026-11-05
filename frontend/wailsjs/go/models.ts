@@ -163,7 +163,6 @@ export namespace main {
 	    supportsTools: boolean;
 	    free: boolean;
 	    local: boolean;
-	    note: string;
 	    privacy: string;
 
 	    static createFrom(source: any = {}) {
@@ -179,7 +178,6 @@ export namespace main {
 	        this.supportsTools = source["supportsTools"];
 	        this.free = source["free"];
 	        this.local = source["local"];
-	        this.note = source["note"];
 	        this.privacy = source["privacy"];
 	    }
 	}

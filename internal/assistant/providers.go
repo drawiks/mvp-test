@@ -15,19 +15,16 @@ var GroqFreeModels = []Model{
 	{
 		ID: "qwen/qwen3.8-27b", Name: "Qwen3.8 27B", Provider: ProviderGroq,
 		ContextLength: 131072, SupportsTools: true, Free: true,
-		Note:    "free tier: 30 RPM / 1000 RPD / 8K TPM / 200K TPD",
 		Privacy: "Groq не сохраняет данные по умолчанию; ZDR включается в Data Controls; данные в US",
 	},
 	{
 		ID: "openai/gpt-oss-120b", Name: "GPT-OSS 120B", Provider: ProviderGroq,
 		ContextLength: 131072, SupportsTools: true, Free: true,
-		Note:    "free tier: 30 RPM / 1000 RPD / 8K TPM / 200K TPD",
 		Privacy: "Groq не сохраняет данные по умолчанию; ZDR включается в Data Controls; данные в US",
 	},
 	{
 		ID: "openai/gpt-oss-20b", Name: "GPT-OSS 20B", Provider: ProviderGroq,
 		ContextLength: 131072, SupportsTools: true, Free: true,
-		Note:    "free tier: 30 RPM / 1000 RPD / 8K TPM / 200K TPD",
 		Privacy: "Groq не сохраняет данные по умолчанию; ZDR включается в Data Controls; данные в US",
 	},
 }

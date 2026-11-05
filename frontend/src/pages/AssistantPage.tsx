@@ -348,7 +348,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       </div>
 
       {settings && (
-        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card/40 p-3">
+        <div className="grid items-end gap-2 rounded-lg border border-border bg-card/40 p-3 md:grid-cols-[200px_minmax(0,1fr)_auto]">
           <div className="space-y-1">
             <label className="label-caps">Провайдер</label>
             <Select value={settings.provider} onValueChange={(v) => void changeProvider(v)}>
@@ -378,7 +378,6 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
                 )}
               </SelectContent>
             </Select>
-            {currentModel?.note && <p className="text-[10px] text-muted-foreground">{currentModel.note}</p>}
           </div>
           <Button
             variant="outline"

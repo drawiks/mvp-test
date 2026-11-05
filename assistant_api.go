@@ -32,7 +32,6 @@ type AssistantModel struct {
 	SupportsTools bool   `json:"supportsTools"`
 	Free          bool   `json:"free"`
 	Local         bool   `json:"local"`
-	Note          string `json:"note,omitempty"`
 	Privacy       string `json:"privacy,omitempty"`
 }
 
@@ -199,7 +198,7 @@ func (a *App) ListAssistantModels(provider, baseURL string, refresh bool) ([]Ass
 	for _, m := range models {
 		out = append(out, AssistantModel{
 			ID: m.ID, Name: m.Name, Provider: m.Provider, ContextLength: m.ContextLength,
-			SupportsTools: m.SupportsTools, Free: m.Free, Local: m.Local, Note: m.Note, Privacy: m.Privacy,
+			SupportsTools: m.SupportsTools, Free: m.Free, Local: m.Local, Privacy: m.Privacy,
 		})
 	}
 	return out, nil

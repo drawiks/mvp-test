@@ -44,7 +44,6 @@ type Model struct {
 	SupportsTools bool   `json:"supportsTools"`
 	Free          bool   `json:"free"`
 	Local         bool   `json:"local"`
-	Note          string `json:"note,omitempty"`
 	Privacy       string `json:"privacy,omitempty"`
 }
 
