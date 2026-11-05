@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"mvp/internal/assistant"
@@ -27,6 +28,20 @@ type assistantPlayerInfo struct {
 	Name        string             `json:"name,omitempty"`
 	SteamID     int64              `json:"steam_id,omitempty"`
 	Stats       map[string]float64 `json:"stats,omitempty"`
+	Variables   map[string]float64 `json:"variables,omitempty"`
+}
+
+type assistantMvpInfo struct {
+	Place       int     `json:"place"`
+	Role        string  `json:"role"`
+	Label       string  `json:"label"`
+	PlayerID    int     `json:"player_id"`
+	Hero        string  `json:"hero"`
+	Team        string  `json:"team"`
+	Score       float64 `json:"score"`
+	GlobalPlace int     `json:"global_place"`
+	TeamPlace   int     `json:"team_place"`
+	Name        string  `json:"name,omitempty"`
 }
 
 type assistantMatchInfo struct {
@@ -35,6 +50,7 @@ type assistantMatchInfo struct {
 	Winner      string                `json:"winner"`
 	Formula     string                `json:"formula"`
 	Players     []assistantPlayerInfo `json:"players"`
+	MVPPodium   []assistantMvpInfo    `json:"mvp_podium"`
 }
 
 type assistantRanking struct {
@@ -43,14 +59,39 @@ type assistantRanking struct {
 	Team        string  `json:"team"`
 	Score       float64 `json:"score"`
 	GlobalPlace int     `json:"global_place"`
+	TeamPlace   int     `json:"team_place"`
+	MvpRole     string  `json:"mvp_role,omitempty"`
 	Name        string  `json:"name,omitempty"`
+}
+
+type assistantPreview struct {
+	Ranking   []assistantRanking `json:"ranking"`
+	MVPPodium []assistantMvpInfo `json:"mvp_podium"`
+}
+
+type assistantStatLeader struct {
+	PlayerID    int     `json:"player_id"`
+	Hero        string  `json:"hero"`
+	Team        string  `json:"team"`
+	Value       float64 `json:"value"`
+	GlobalPlace int     `json:"global_place"`
+	TeamPlace   int     `json:"team_place"`
+	MvpRole     string  `json:"mvp_role,omitempty"`
+	Name        string  `json:"name,omitempty"`
+}
+
+type assistantTokenInfo struct {
+	Token string `json:"token"`
+	Label string `json:"label"`
+	Unit  string `json:"unit,omitempty"`
+	Note  string `json:"note,omitempty"`
 }
 
 func (a *App) assistantTools() []assistant.Tool {
 	return []assistant.Tool{
 		{
 			Name:        "get_match_context",
-			Description: "Вернуть текущий матч, активную формулу и статистику всех игроков.",
+			Description: "Текущий матч: победитель, длительность, активная формула, все игроки с рейтингом и MVP-подиум. Вызывай один раз в начале анализа.",
 			Parameters:  objectSchema(nil),
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				return a.toolMatchContext()
@@ -58,7 +99,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "get_player",
-			Description: "Вернуть полную статистику одного игрока по player_id.",
+			Description: "Полная статистика одного игрока и значения пользовательских переменных. Используй для 1–2 ключевых игроков, не для всех.",
 			Parameters: objectSchema(map[string]any{
 				"player_id": map[string]any{"type": "integer", "description": "player_id от 0 до 9"},
 			}, "player_id"),
@@ -72,7 +113,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "get_active_formula",
-			Description: "Вернуть активную формулу (пресет).",
+			Description: "Активная формула с выражением или весами. Вызывай, когда нужно объяснить текущую формулу.",
 			Parameters:  objectSchema(nil),
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				return a.store.Active(), nil
@@ -80,7 +121,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "list_formulas",
-			Description: "Вернуть все сохранённые формулы.",
+			Description: "Сохранённые формулы с выражениями и весами. Используй для сравнения или выбора существующей формулы.",
 			Parameters:  objectSchema(nil),
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				return a.store.Presets(), nil
@@ -88,15 +129,15 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "get_token_catalog",
-			Description: "Вернуть список доступных токенов формулы с подписями.",
+			Description: "Базовые токены формулы с единицами и пояснениями. Вызывай перед созданием или проверкой формулы.",
 			Parameters:  objectSchema(nil),
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
-				return formula.Stats, nil
+				return assistantTokenCatalog(), nil
 			},
 		},
 		{
 			Name:        "list_variables",
-			Description: "Вернуть пользовательские переменные.",
+			Description: "Пользовательские переменные и их выражения. Используй, если формула ссылается на переменную или нужно предложить новую.",
 			Parameters:  objectSchema(nil),
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				return a.varStore.Variables(), nil
@@ -104,7 +145,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "validate_formula",
-			Description: "Проверить синтаксис и токены формулы.",
+			Description: "Проверить синтаксис, операторы и допустимые токены формулы. Вызывай до preview_formula и propose_formula.",
 			Parameters: objectSchema(map[string]any{
 				"expression": map[string]any{"type": "string"},
 			}, "expression"),
@@ -118,7 +159,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "preview_formula",
-			Description: "Оценить формулу на текущем матче и вернуть ранжирование.",
+			Description: "Оценить формулу на текущем матче: рейтинг игроков и MVP-подиум. Вызывай до propose_formula.",
 			Parameters: objectSchema(map[string]any{
 				"expression": map[string]any{"type": "string"},
 			}, "expression"),
@@ -128,7 +169,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "explain_player",
-			Description: "Показать вклад слагаемых формулы для одного игрока.",
+			Description: "Показать вклад слагаемых формулы для одного игрока. Используй только для 1–2 ключевых игроков.",
 			Parameters: objectSchema(map[string]any{
 				"expression": map[string]any{"type": "string"},
 				"player_id":  map[string]any{"type": "integer", "description": "player_id от 0 до 9"},
@@ -143,7 +184,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "compare_formulas",
-			Description: "Сравнить ранжирование двух формул на текущем матче.",
+			Description: "Сравнить две формулы: рейтинги, MVP-подиумы и изменения мест на текущем матче.",
 			Parameters: objectSchema(map[string]any{
 				"expression_a": map[string]any{"type": "string"},
 				"expression_b": map[string]any{"type": "string"},
@@ -153,8 +194,31 @@ func (a *App) assistantTools() []assistant.Tool {
 			},
 		},
 		{
+			Name:        "diff_formulas",
+			Description: "Показать добавленные и удалённые верхнеуровневые слагаемые между двумя формулами.",
+			Parameters: objectSchema(map[string]any{
+				"expression_a": map[string]any{"type": "string"},
+				"expression_b": map[string]any{"type": "string"},
+			}, "expression_a", "expression_b"),
+			Run: func(ctx context.Context, args map[string]any) (any, error) {
+				return a.toolDiff(stringArg(args, "expression_a"), stringArg(args, "expression_b"))
+			},
+		},
+		{
+			Name:        "get_stat_leaders",
+			Description: "Отсортировать игроков по одному базовому токену или пользовательской переменной. Используй для вопросов «кто лучший по X».",
+			Parameters: objectSchema(map[string]any{
+				"token": map[string]any{"type": "string", "description": "имя токена или пользовательской переменной"},
+				"team":  map[string]any{"type": "string", "enum": []string{"radiant", "dire"}, "description": "необязательно: только одна команда"},
+				"limit": map[string]any{"type": "integer", "description": "сколько игроков вернуть, по умолчанию 5"},
+			}, "token"),
+			Run: func(ctx context.Context, args map[string]any) (any, error) {
+				return a.toolStatLeaders(args)
+			},
+		},
+		{
 			Name:        "propose_formula",
-			Description: "Предложить формулу. Сохраняет только предложение, не меняет пресеты.",
+			Description: "Предложить формулу после validate_formula и preview_formula. Сохраняет только предложение, не меняет пресеты.",
 			Parameters: objectSchema(map[string]any{
 				"name":        map[string]any{"type": "string"},
 				"description": map[string]any{"type": "string"},
@@ -198,7 +262,7 @@ func (a *App) toolMatchContext() (assistantMatchInfo, error) {
 	}
 	return assistantMatchInfo{
 		MatchID: result.MatchID, DurationSec: result.DurationSec, Winner: result.WinnerTeam(),
-		Formula: a.store.Active().Name, Players: players,
+		Formula: a.store.Active().Name, Players: players, MVPPodium: buildMVPPodium(views, showNames),
 	}, nil
 }
 
@@ -208,46 +272,61 @@ func (a *App) toolPlayer(playerID int) (assistantPlayerInfo, error) {
 		return assistantPlayerInfo{}, err
 	}
 	showNames := a.assistantShowNames()
+	defs := a.varStore.Variables()
 	for _, v := range views {
 		if v.PlayerID != playerID {
 			continue
+		}
+		resolved, err := formula.ResolveVars(v.Stats, defs)
+		if err != nil {
+			return assistantPlayerInfo{}, err
+		}
+		values := make(map[string]float64, len(defs))
+		for _, def := range defs {
+			if value, ok := resolved[def.Name]; ok {
+				values[def.Name] = value
+			}
+		}
+		if len(values) == 0 {
+			values = nil
 		}
 		return assistantPlayerInfo{
 			PlayerID: v.PlayerID, Hero: v.Hero, Team: v.Team, Position: v.Position, Lane: v.Lane,
 			Score: v.Score, GlobalPlace: v.GlobalPlace, TeamPlace: v.TeamPlace, MvpRole: v.MvpRole,
 			Name: optionalName(v.Name, showNames), SteamID: optionalSteamID(v.SteamID, showNames),
-			Stats: v.Stats,
+			Stats: v.Stats, Variables: values,
 		}, nil
 	}
 	return assistantPlayerInfo{}, fmt.Errorf("игрок %d не найден", playerID)
 }
 
-func (a *App) toolPreview(expression string) ([]assistantRanking, error) {
+func (a *App) toolPreview(expression string) (assistantPreview, error) {
 	expression = strings.TrimSpace(expression)
 	if expression == "" {
-		return nil, errors.New("пустое выражение")
+		return assistantPreview{}, errors.New("пустое выражение")
 	}
 	if err := formula.Validate(expression, a.varStore.AllowedNames()); err != nil {
-		return nil, err
+		return assistantPreview{}, err
 	}
 	result, err := a.assistantResult()
 	if err != nil {
-		return nil, err
+		return assistantPreview{}, err
 	}
 	preset := formula.Preset{ID: "__assistant", Name: "__assistant", Kind: "expression", Expression: expression}
 	views, err := BuildViews(*result, preset, a.varStore.Variables())
 	if err != nil {
-		return nil, err
+		return assistantPreview{}, err
 	}
 	showNames := a.assistantShowNames()
 	out := make([]assistantRanking, 0, len(views))
 	for _, v := range views {
 		out = append(out, assistantRanking{
 			PlayerID: v.PlayerID, Hero: v.Hero, Team: v.Team, Score: v.Score,
-			GlobalPlace: v.GlobalPlace, Name: optionalName(v.Name, showNames),
+			GlobalPlace: v.GlobalPlace, TeamPlace: v.TeamPlace, MvpRole: v.MvpRole,
+			Name: optionalName(v.Name, showNames),
 		})
 	}
-	return out, nil
+	return assistantPreview{Ranking: out, MVPPodium: buildMVPPodium(views, showNames)}, nil
 }
 
 func (a *App) toolExplain(expression string, playerID int) (any, error) {
@@ -265,7 +344,10 @@ func (a *App) toolExplain(expression string, playerID int) (any, error) {
 	if player == nil {
 		return nil, fmt.Errorf("игрок %d не найден", playerID)
 	}
-	env := mvp.PlayerVars(*player, float64(result.DurationSec))
+	env, err := formula.ResolveVars(mvp.PlayerVars(*player, float64(result.DurationSec)), a.varStore.Variables())
+	if err != nil {
+		return nil, err
+	}
 	rows, err := formula.Breakdown(expression, env)
 	if err != nil {
 		return nil, err
@@ -274,24 +356,24 @@ func (a *App) toolExplain(expression string, playerID int) (any, error) {
 }
 
 func (a *App) toolCompare(aExpr, bExpr string) (any, error) {
-	aRanks, err := a.toolPreview(aExpr)
+	aPreview, err := a.toolPreview(aExpr)
 	if err != nil {
 		return nil, fmt.Errorf("формула A: %v", err)
 	}
-	bRanks, err := a.toolPreview(bExpr)
+	bPreview, err := a.toolPreview(bExpr)
 	if err != nil {
 		return nil, fmt.Errorf("формула B: %v", err)
 	}
 	aPlace := map[int]int{}
-	for _, r := range aRanks {
+	for _, r := range aPreview.Ranking {
 		aPlace[r.PlayerID] = r.GlobalPlace
 	}
 	bPlace := map[int]int{}
-	for _, r := range bRanks {
+	for _, r := range bPreview.Ranking {
 		bPlace[r.PlayerID] = r.GlobalPlace
 	}
-	changes := make([]map[string]any, 0, len(aRanks))
-	for _, r := range aRanks {
+	changes := make([]map[string]any, 0, len(aPreview.Ranking))
+	for _, r := range aPreview.Ranking {
 		before := aPlace[r.PlayerID]
 		after := bPlace[r.PlayerID]
 		if before == after {
@@ -302,8 +384,157 @@ func (a *App) toolCompare(aExpr, bExpr string) (any, error) {
 		})
 	}
 	return map[string]any{
-		"formula_a": aRanks, "formula_b": bRanks, "rank_changes": changes,
+		"formula_a": aPreview, "formula_b": bPreview, "rank_changes": changes,
 	}, nil
+}
+
+var mvpRoleLabels = map[string]string{
+	"winner_top1": "MVP матча",
+	"loser_top1":  "Лучший в проигравшей команде",
+	"winner_top2": "2-й лучший в победившей команде",
+}
+
+func buildMVPPodium(views []PlayerView, showNames bool) []assistantMvpInfo {
+	byRole := make(map[string]PlayerView, 3)
+	for _, view := range views {
+		if view.MvpRole != "" {
+			byRole[view.MvpRole] = view
+		}
+	}
+	out := make([]assistantMvpInfo, 0, 3)
+	for _, role := range []string{"winner_top1", "loser_top1", "winner_top2"} {
+		view, ok := byRole[role]
+		if !ok {
+			continue
+		}
+		out = append(out, assistantMvpInfo{
+			Place: len(out) + 1, Role: role, Label: mvpRoleLabels[role],
+			PlayerID: view.PlayerID, Hero: view.Hero, Team: view.Team, Score: view.Score,
+			GlobalPlace: view.GlobalPlace, TeamPlace: view.TeamPlace,
+			Name: optionalName(view.Name, showNames),
+		})
+	}
+	return out
+}
+
+func (a *App) toolDiff(aExpr, bExpr string) (FormulaDiff, error) {
+	aExpr = strings.TrimSpace(aExpr)
+	bExpr = strings.TrimSpace(bExpr)
+	if aExpr == "" || bExpr == "" {
+		return FormulaDiff{}, errors.New("нужны обе формулы")
+	}
+	allowed := a.varStore.AllowedNames()
+	if err := formula.Validate(aExpr, allowed); err != nil {
+		return FormulaDiff{}, fmt.Errorf("формула A: %v", err)
+	}
+	if err := formula.Validate(bExpr, allowed); err != nil {
+		return FormulaDiff{}, fmt.Errorf("формула B: %v", err)
+	}
+	return a.DiffFormula(aExpr, bExpr), nil
+}
+
+func (a *App) toolStatLeaders(args map[string]any) ([]assistantStatLeader, error) {
+	token := strings.TrimSpace(stringArg(args, "token"))
+	if token == "" {
+		return nil, errors.New("укажите token")
+	}
+	if !a.varStore.AllowedNames()[token] {
+		return nil, fmt.Errorf("неизвестный токен: %s", token)
+	}
+	team := strings.ToLower(strings.TrimSpace(stringArg(args, "team")))
+	if team != "" && team != "radiant" && team != "dire" {
+		return nil, errors.New("team должен быть radiant или dire")
+	}
+	limit := 5
+	if _, ok := args["limit"]; ok {
+		n, err := intArg(args, "limit")
+		if err != nil {
+			return nil, err
+		}
+		limit = n
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+	if limit > 10 {
+		limit = 10
+	}
+
+	_, views, err := a.assistantViews()
+	if err != nil {
+		return nil, err
+	}
+	showNames := a.assistantShowNames()
+	defs := a.varStore.Variables()
+	out := make([]assistantStatLeader, 0, len(views))
+	for _, view := range views {
+		if team != "" && view.Team != team {
+			continue
+		}
+		env, err := formula.ResolveVars(view.Stats, defs)
+		if err != nil {
+			return nil, err
+		}
+		value, ok := env[token]
+		if !ok {
+			return nil, fmt.Errorf("токен %s недоступен", token)
+		}
+		out = append(out, assistantStatLeader{
+			PlayerID: view.PlayerID, Hero: view.Hero, Team: view.Team, Value: value,
+			GlobalPlace: view.GlobalPlace, TeamPlace: view.TeamPlace, MvpRole: view.MvpRole,
+			Name: optionalName(view.Name, showNames),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Value == out[j].Value {
+			return out[i].PlayerID < out[j].PlayerID
+		}
+		return out[i].Value > out[j].Value
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func assistantTokenCatalog() []assistantTokenInfo {
+	out := make([]assistantTokenInfo, 0, len(formula.Stats))
+	for _, stat := range formula.Stats {
+		out = append(out, assistantTokenInfo{
+			Token: stat.Token, Label: stat.Label,
+			Unit: tokenUnits[stat.Token], Note: tokenNotes[stat.Token],
+		})
+	}
+	return out
+}
+
+var tokenUnits = map[string]string{
+	"kills": "count", "deaths": "count", "assists": "count", "last_hits": "count",
+	"gpm": "gold/min", "xpm": "xp/min", "stun_duration": "seconds",
+	"healing": "HP", "mana_restored": "mana", "tower_damage": "HP",
+	"camps_stacked": "count", "rune_pickups": "count", "first_blood": "0/1",
+	"hero_damage": "HP", "damage_taken": "HP",
+	"gold_spent_wards": "gold", "gold_spent_smoke": "gold", "gold_spent_dust": "gold", "gold_lost": "gold",
+	"buff_duration": "seconds", "save_duration": "seconds", "purge_count": "count",
+	"shield_duration": "seconds", "buff_stats_duration": "seconds",
+	"invisibility_duration": "seconds", "buff_haste_duration": "seconds",
+	"fear_duration": "seconds", "roots_duration": "seconds", "leash_duration": "seconds",
+	"trap_duration": "seconds", "taunt_duration": "seconds", "silence_duration": "seconds",
+	"break_duration": "seconds", "disarm_duration": "seconds",
+	"heal_duration": "seconds", "heal_value": "HP", "time_dead": "seconds",
+	"creeps_stacked": "count", "wisdoms_captured": "count", "watchers_captured": "count",
+	"lotuses_gathered": "count", "courier_kills": "count", "match_duration": "seconds",
+	"position": "1-5",
+}
+
+var tokenNotes = map[string]string{
+	"position":       "1=carry, 2=mid, 3=offlane, 4/5=support",
+	"gpm":            "gold per minute",
+	"xpm":            "experience per minute",
+	"match_duration": "seconds",
+	"mana_restored":  "use only for manta-parsed replays",
+	"first_blood":    "1 if first blood, else 0",
+	"time_dead":      "seconds",
 }
 
 func (a *App) assistantResult() (*model.Result, error) {

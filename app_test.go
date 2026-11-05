@@ -147,6 +147,182 @@ func TestAssistantToolsUseGeminiSchemas(t *testing.T) {
 	}
 }
 
+func TestAssistantMvpPodium(t *testing.T) {
+	a := fixture(t)
+	a.assistantSettings = assistant.DefaultSettings()
+	ctx, err := a.toolMatchContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRoles := []string{"winner_top1", "loser_top1", "winner_top2"}
+	if len(ctx.MVPPodium) != len(wantRoles) {
+		t.Fatalf("podium %+v", ctx.MVPPodium)
+	}
+	for i, role := range wantRoles {
+		if ctx.MVPPodium[i].Role != role || ctx.MVPPodium[i].Place != i+1 {
+			t.Fatalf("podium[%d] = %+v, want %s", i, ctx.MVPPodium[i], role)
+		}
+		if ctx.MVPPodium[i].Name != "" {
+			t.Fatalf("player names must be masked: %+v", ctx.MVPPodium[i])
+		}
+	}
+	if ctx.MVPPodium[0].Team != ctx.Winner {
+		t.Fatalf("MVP team = %s, winner = %s", ctx.MVPPodium[0].Team, ctx.Winner)
+	}
+	if ctx.MVPPodium[1].Team == ctx.Winner {
+		t.Fatalf("loser MVP team = %s", ctx.MVPPodium[1].Team)
+	}
+}
+
+func TestAssistantPreviewMvp(t *testing.T) {
+	a := fixture(t)
+	preview, err := a.toolPreview("kills * 2 + assists")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.Ranking) != 10 || len(preview.MVPPodium) != 3 {
+		t.Fatalf("preview %+v", preview)
+	}
+	wantRoles := []string{"winner_top1", "loser_top1", "winner_top2"}
+	for i, role := range wantRoles {
+		if preview.MVPPodium[i].Role != role {
+			t.Fatalf("podium[%d] = %s, want %s", i, preview.MVPPodium[i].Role, role)
+		}
+	}
+	for _, row := range preview.Ranking {
+		if row.MvpRole != "" && row.TeamPlace == 0 {
+			t.Fatalf("missing team place: %+v", row)
+		}
+	}
+}
+
+func TestAssistantStatLeaders(t *testing.T) {
+	a := fixture(t)
+	leaders, err := a.toolStatLeaders(map[string]any{"token": "kills", "limit": float64(3)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaders) != 3 {
+		t.Fatalf("leaders %d", len(leaders))
+	}
+	for i := 1; i < len(leaders); i++ {
+		if leaders[i-1].Value < leaders[i].Value {
+			t.Fatalf("leaders not sorted: %+v", leaders)
+		}
+	}
+	team, err := a.toolStatLeaders(map[string]any{"token": "kills", "team": "radiant"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leader := range team {
+		if leader.Team != "radiant" {
+			t.Fatalf("team filter failed: %+v", leader)
+		}
+	}
+}
+
+func TestAssistantDiffFormulas(t *testing.T) {
+	a := fixture(t)
+	diff, err := a.toolDiff("kills * 2 + assists", "kills * 2 + deaths")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diff.Added) == 0 || len(diff.Removed) == 0 {
+		t.Fatalf("diff %+v", diff)
+	}
+}
+
+func TestAssistantTokenCatalogUnits(t *testing.T) {
+	catalog := assistantTokenCatalog()
+	byToken := map[string]assistantTokenInfo{}
+	for _, token := range catalog {
+		byToken[token.Token] = token
+	}
+	if byToken["stun_duration"].Unit != "seconds" {
+		t.Fatalf("stun unit = %q", byToken["stun_duration"].Unit)
+	}
+	if byToken["position"].Note == "" {
+		t.Fatal("position note missing")
+	}
+	data, err := json.Marshal(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) > 4000 {
+		t.Fatalf("catalog too large: %d bytes", len(data))
+	}
+}
+
+func TestAssistantExplainWithVariable(t *testing.T) {
+	a := fixture(t)
+	a.varStore.Add(formula.Variable{Name: "impact", Expression: "kills * 2 + assists"})
+	_, err := a.toolExplain("impact + deaths", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	player, err := a.toolPlayer(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := player.Variables["impact"]; !ok {
+		t.Fatalf("resolved variables missing: %+v", player.Variables)
+	}
+}
+
+func TestAssistantCompareFitsToolLimit(t *testing.T) {
+	a := fixture(t)
+	out, err := a.toolCompare("kills * 2 + assists", "kills + deaths")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) > 4000 {
+		t.Fatalf("compare result too large: %d bytes", len(data))
+	}
+}
+
+func TestAssistantToolResultsFitLimit(t *testing.T) {
+	a := fixture(t)
+	a.assistantSettings = assistant.DefaultSettings()
+	match, err := a.toolMatchContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	preview, err := a.toolPreview("kills * 2 + assists")
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaders, err := a.toolStatLeaders(map[string]any{"token": "kills"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	player, err := a.toolPlayer(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare, err := a.toolCompare("kills * 2 + assists", "kills + deaths")
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs := map[string]any{
+		"match": match, "preview": preview, "leaders": leaders, "player": player,
+		"compare": compare, "tokens": assistantTokenCatalog(),
+		"formulas": a.store.Presets(), "variables": a.varStore.Variables(),
+	}
+	for name, output := range outputs {
+		data, err := json.Marshal(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(data) > 4000 {
+			t.Errorf("%s result too large: %d bytes", name, len(data))
+		}
+	}
+}
+
 func TestDiffFormula(t *testing.T) {
 	a := &App{}
 	d := a.DiffFormula("kills * 2 + assists * 3", "kills * 2 + deaths * 1")
