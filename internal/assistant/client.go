@@ -20,7 +20,7 @@ type toolDefinition struct {
 type toolFunctionDef struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description"`
-	Parameters  map[string]any `json:"parameters"`
+	Parameters  map[string]any `json:"parameters,omitempty"`
 }
 
 type chatRequest struct {

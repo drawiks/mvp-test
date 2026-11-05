@@ -369,12 +369,14 @@ func intArg(args map[string]any, key string) (int, error) {
 
 func objectSchema(properties map[string]any, required ...string) map[string]any {
 	if properties == nil {
-		properties = map[string]any{}
+		return nil
 	}
-	return map[string]any{
-		"type":                 "object",
-		"properties":           properties,
-		"additionalProperties": false,
-		"required":             required,
+	schema := map[string]any{
+		"type":       "object",
+		"properties": properties,
 	}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	return schema
 }

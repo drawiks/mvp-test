@@ -132,6 +132,21 @@ func TestAssistantTools(t *testing.T) {
 	}
 }
 
+func TestAssistantToolsUseGeminiSchemas(t *testing.T) {
+	a := fixture(t)
+	for _, tool := range a.assistantTools() {
+		if tool.Parameters == nil {
+			continue
+		}
+		if _, ok := tool.Parameters["additionalProperties"]; ok {
+			t.Errorf("%s: additionalProperties is not supported by Gemini", tool.Name)
+		}
+		if required, ok := tool.Parameters["required"]; ok && required == nil {
+			t.Errorf("%s: required must be a list, not null", tool.Name)
+		}
+	}
+}
+
 func TestDiffFormula(t *testing.T) {
 	a := &App{}
 	d := a.DiffFormula("kills * 2 + assists * 3", "kills * 2 + deaths * 1")
