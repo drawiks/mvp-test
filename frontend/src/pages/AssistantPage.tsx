@@ -17,7 +17,26 @@ type ChatMessage = { role: "user" | "assistant"; text: string; tools: ToolEvent[
 const DEFAULT_MODEL: Record<string, string> = {
   groq: "qwen/qwen3.8-27b",
   openrouter: "nvidia/nemotron-3-ultra-550b-a55b:free",
+  ollama: "",
+  llamacpp: "",
 };
+
+const DEFAULT_URL: Record<string, string> = {
+  ollama: "http://127.0.0.1:11434/v1",
+  llamacpp: "http://127.0.0.1:9931/v1",
+};
+
+const PROVIDER_LABEL: Record<string, string> = {
+  groq: "GroqCloud",
+  openrouter: "OpenRouter",
+  ollama: "Ollama",
+  llamacpp: "llama.cpp",
+};
+
+function localURL(settings: main.AssistantSettings | null, provider: string): string {
+  if (!settings) return DEFAULT_URL[provider] ?? "";
+  return provider === "ollama" ? settings.ollamaUrl || DEFAULT_URL.ollama : settings.llamaCppUrl || DEFAULT_URL.llamacpp;
+}
 
 type Props = {
   onChange: () => Promise<void> | void;
@@ -70,10 +89,10 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     }
   };
 
-  const reloadModels = async (provider: string) => {
+  const reloadModels = async (provider: string, baseURL = "", refresh = false) => {
     setLoadingModels(true);
     try {
-      const list = await Bindings.ListAssistantModels(provider, false);
+      const list = await Bindings.ListAssistantModels(provider, baseURL, refresh);
       setModels(list);
       setSettings((s) => {
         if (!s) return s;
@@ -99,7 +118,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       try {
         const s = await Bindings.GetAssistantSettings();
         setSettings(s);
-        await reloadModels(s.provider);
+        await reloadModels(s.provider, localURL(s, s.provider));
         await refreshLimits();
         const history = await Bindings.GetAssistantHistory();
         setMessages(
@@ -190,7 +209,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       await persist(settings, { groq: groqKey, openrouter: openRouterKey });
       setGroqKey("");
       setOpenRouterKey("");
-      await reloadModels(settings.provider);
+      await reloadModels(settings.provider, localURL(settings, settings.provider));
       await refreshLimits();
       toast.success("Настройки ассистента сохранены");
     } catch (e) {
@@ -214,12 +233,17 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
 
   const changeProvider = async (provider: string) => {
     if (!settings) return;
-    const list = await Bindings.ListAssistantModels(provider, false).catch(() => [] as main.AssistantModel[]);
+    const baseURL = provider === "ollama" ? settings.ollamaUrl : provider === "llamacpp" ? settings.llamaCppUrl : "";
+    const list = await Bindings.ListAssistantModels(provider, baseURL, false).catch(() => [] as main.AssistantModel[]);
     setModels(list);
-    const model = DEFAULT_MODEL[provider] ?? list[0]?.id ?? "";
+    const model = DEFAULT_MODEL[provider] || list[0]?.id || "";
     const next = { ...settings, provider, model };
     setSettings(next);
     setError("");
+    if (!model) {
+      setError("Модели не найдены. Проверьте URL и запустите локальный сервер.");
+      return;
+    }
     try {
       await persist(next);
       await refreshLimits();
@@ -291,10 +315,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   };
 
   const currentModel = models.find((m) => m.id === settings?.model);
+  const isLocal = settings?.provider === "ollama" || settings?.provider === "llamacpp";
   const keySet = settings?.provider === "openrouter" ? settings?.hasOpenRouterKey : settings?.hasGroqKey;
-  const providerLabel = settings?.provider === "openrouter" ? "OpenRouter" : "GroqCloud";
-  const limitText = limitsLabel(limits, settings?.provider ?? "");
+  const providerLabel = PROVIDER_LABEL[settings?.provider ?? ""] ?? "Ассистент";
+  const limitText = isLocal ? "" : limitsLabel(limits, settings?.provider ?? "");
   const limitLow =
+    !isLocal &&
     limits &&
     ((limits.requestsLimit > 0 && limits.requestsRemaining <= limits.requestsLimit * 0.1) ||
       (limits.freeRequestsLimit > 0 && limits.freeRequestsRemaining <= limits.freeRequestsLimit * 0.1));
@@ -312,7 +338,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
               <span className="max-w-56 truncate font-mono text-muted-foreground" title={settings.model}>
                 {currentModel?.name ?? settings.model}
               </span>
-              <Badge variant="gold" className="text-[9px]">FREE</Badge>
+              <Badge variant={isLocal ? "outline" : "gold"} className="text-[9px]">{isLocal ? "LOCAL" : "FREE"}</Badge>
               {limitText && (
                 <span className={cn("font-mono tabular-nums", limitLow ? "text-destructive" : "text-muted-foreground")}>
                   {limitText}
@@ -342,11 +368,13 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
               <SelectContent>
                 <SelectItem value="groq">GroqCloud</SelectItem>
                 <SelectItem value="openrouter">OpenRouter</SelectItem>
+                <SelectItem value="ollama">Ollama (локально)</SelectItem>
+                <SelectItem value="llamacpp">llama.cpp (локально)</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <label className="label-caps">Бесплатная модель</label>
+            <label className="label-caps">{isLocal ? "Локальная модель" : "Бесплатная модель"}</label>
             <Select value={settings.model} onValueChange={(v) => void changeModel(v)}>
               <SelectTrigger className="h-8 w-full">
                 <SelectValue placeholder="Выберите модель" />
@@ -364,45 +392,83 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
             </Select>
             {currentModel?.note && <p className="text-[10px] text-muted-foreground">{currentModel.note}</p>}
             {currentModel?.privacy && <p className="text-[10px] text-muted-foreground">{currentModel.privacy}</p>}
+            {isLocal && currentModel && !currentModel.supportsTools && (
+              <p className="text-[10px] text-destructive">Модель не поддерживает tool calling.</p>
+            )}
+            {settings.provider === "llamacpp" && (
+              <p className="text-[10px] text-amber-300">
+                Запускайте llama-server с `--jinja`; для стабильного id используйте `--alias`.
+              </p>
+            )}
           </div>
-          <div className="flex items-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => void reloadModels(settings.provider)} disabled={loadingModels}>
-              <RefreshCw className={cn("mr-1.5 size-3.5", loadingModels && "animate-spin")} /> Обновить
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => void refreshLimits()}>Лимиты</Button>
-          </div>
+          {!isLocal && (
+            <div className="flex items-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => void reloadModels(settings.provider, "", true)} disabled={loadingModels}>
+                <RefreshCw className={cn("mr-1.5 size-3.5", loadingModels && "animate-spin")} /> Обновить
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => void refreshLimits()}>Лимиты</Button>
+            </div>
+          )}
 
           <div className="space-y-1 md:col-span-3">
-            <label className="label-caps">
-              API-ключ {providerLabel}
-              {keySet && <span className="ml-2 normal-case text-radiant">сохранён</span>}
-            </label>
-            <div className="flex flex-wrap gap-2">
-              <Input
-                type="password"
-                value={settings.provider === "groq" ? groqKey : openRouterKey}
-                onChange={(e) => (settings.provider === "groq" ? setGroqKey(e.target.value) : setOpenRouterKey(e.target.value))}
-                placeholder={keySet ? "оставьте пустым, чтобы не менять" : "вставьте API-ключ"}
-                className="h-8 max-w-md flex-1"
-              />
-              <Button size="sm" onClick={() => void saveSettings()}>Сохранить</Button>
-              <Button variant="outline" size="sm" onClick={() => void testConnection()}>Проверить</Button>
-              {keySet && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={async () => {
-                    await Bindings.ClearAssistantKey(settings.provider);
-                    const s = await Bindings.GetAssistantSettings();
-                    setSettings(s);
-                    toast.success("Ключ удалён");
-                  }}
-                >
-                  <Trash2 className="mr-1.5 size-3.5" /> Удалить ключ
+            {isLocal ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-72 flex-1 space-y-1">
+                  <label className="label-caps">URL сервера</label>
+                  <Input
+                    value={settings.provider === "ollama" ? settings.ollamaUrl : settings.llamaCppUrl}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        ...(settings.provider === "ollama"
+                          ? { ollamaUrl: e.target.value }
+                          : { llamaCppUrl: e.target.value }),
+                      })
+                    }
+                    placeholder={DEFAULT_URL[settings.provider]}
+                    className="h-8"
+                  />
+                </div>
+                <Button size="sm" onClick={() => void saveSettings()}>Сохранить</Button>
+                <Button variant="outline" size="sm" onClick={() => void testConnection()}>Проверить</Button>
+                <Button variant="outline" size="sm" onClick={() => void reloadModels(settings.provider, localURL(settings, settings.provider), true)} disabled={loadingModels}>
+                  <RefreshCw className={cn("mr-1.5 size-3.5", loadingModels && "animate-spin")} /> Модели
                 </Button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <label className="label-caps">
+                  API-ключ {providerLabel}
+                  {keySet && <span className="ml-2 normal-case text-radiant">сохранён</span>}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    type="password"
+                    value={settings.provider === "groq" ? groqKey : openRouterKey}
+                    onChange={(e) => (settings.provider === "groq" ? setGroqKey(e.target.value) : setOpenRouterKey(e.target.value))}
+                    placeholder={keySet ? "оставьте пустым, чтобы не менять" : "вставьте API-ключ"}
+                    className="h-8 max-w-md flex-1"
+                  />
+                  <Button size="sm" onClick={() => void saveSettings()}>Сохранить</Button>
+                  <Button variant="outline" size="sm" onClick={() => void testConnection()}>Проверить</Button>
+                  {keySet && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={async () => {
+                        await Bindings.ClearAssistantKey(settings.provider);
+                        const s = await Bindings.GetAssistantSettings();
+                        setSettings(s);
+                        toast.success("Ключ удалён");
+                      }}
+                    >
+                      <Trash2 className="mr-1.5 size-3.5" /> Удалить ключ
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
             <label className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground">
               <input
                 type="checkbox"
@@ -418,6 +484,11 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
             {settings.provider === "openrouter" && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-200">
                 OpenRouter free-модели: часть маршрутов может использовать данные для обучения. Не отправляйте секретные формулы; имена по умолчанию маскируются.
+              </div>
+            )}
+            {isLocal && (
+              <div className="rounded-md border border-radiant/30 bg-radiant/10 p-2 text-[11px] text-radiant">
+                Локальный сервер: данные матча и формулы не покидают компьютер.
               </div>
             )}
           </div>

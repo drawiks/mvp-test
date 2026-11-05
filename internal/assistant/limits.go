@@ -169,3 +169,30 @@ func truncateText(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+// FriendlyErrorFor adds provider-specific connection and model guidance.
+func FriendlyErrorFor(err error, provider string) string {
+	var api *APIError
+	if errors.As(err, &api) {
+		if api.Status == http.StatusNotFound && IsLocal(provider) {
+			return "Модель не найдена на локальном сервере. Обновите список моделей или загрузите её."
+		}
+		return FriendlyError(err)
+	}
+	lower := strings.ToLower(err.Error())
+	connection := strings.Contains(lower, "connection refused") ||
+		strings.Contains(lower, "connect: connection refused") ||
+		strings.Contains(lower, "no such host") ||
+		strings.Contains(lower, "dial tcp") ||
+		strings.Contains(lower, "i/o timeout") ||
+		strings.Contains(lower, "connection reset")
+	if connection {
+		switch provider {
+		case ProviderOllama:
+			return "Ollama не отвечает. Запустите `ollama serve` или проверьте URL в настройках."
+		case ProviderLlamaCpp:
+			return "llama-server не отвечает. Запустите его с `--jinja` и проверьте URL/порт (обычно 9931)."
+		}
+	}
+	return err.Error()
+}

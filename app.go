@@ -105,6 +105,12 @@ func (a *App) startup(ctx context.Context) {
 	if cfg.Assistant.Temperature <= 0 || cfg.Assistant.Temperature > 2 {
 		cfg.Assistant.Temperature = 0.2
 	}
+	if cfg.Assistant.OllamaURL == "" {
+		cfg.Assistant.OllamaURL = assistant.OllamaBaseURL
+	}
+	if cfg.Assistant.LlamaCppURL == "" {
+		cfg.Assistant.LlamaCppURL = assistant.LlamaCppBaseURL
+	}
 	a.parserURL = cfg.ParserURL
 	a.parserEngine = cfg.ParserEngine
 	a.assistantSettings = cfg.Assistant

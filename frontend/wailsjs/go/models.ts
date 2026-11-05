@@ -162,6 +162,7 @@ export namespace main {
 	    contextLength: number;
 	    supportsTools: boolean;
 	    free: boolean;
+	    local: boolean;
 	    note: string;
 	    privacy: string;
 
@@ -177,6 +178,7 @@ export namespace main {
 	        this.contextLength = source["contextLength"];
 	        this.supportsTools = source["supportsTools"];
 	        this.free = source["free"];
+	        this.local = source["local"];
 	        this.note = source["note"];
 	        this.privacy = source["privacy"];
 	    }
@@ -203,6 +205,8 @@ export namespace main {
 	    temperature: number;
 	    maxToolRounds: number;
 	    sendPlayerNames: boolean;
+	    ollamaUrl: string;
+	    llamaCppUrl: string;
 	    hasGroqKey: boolean;
 	    hasOpenRouterKey: boolean;
 
@@ -217,6 +221,8 @@ export namespace main {
 	        this.temperature = source["temperature"];
 	        this.maxToolRounds = source["maxToolRounds"];
 	        this.sendPlayerNames = source["sendPlayerNames"];
+	        this.ollamaUrl = source["ollamaUrl"];
+	        this.llamaCppUrl = source["llamaCppUrl"];
 	        this.hasGroqKey = source["hasGroqKey"];
 	        this.hasOpenRouterKey = source["hasOpenRouterKey"];
 	    }

@@ -173,6 +173,24 @@ func TestTrimHistoryByBudget(t *testing.T) {
 	}
 }
 
+func TestAssistantLocalSettings(t *testing.T) {
+	a := &App{
+		configPath:        filepath.Join(t.TempDir(), "config.json"),
+		assistantSettings: assistant.DefaultSettings(),
+	}
+	err := a.SaveAssistantSettings(AssistantSettings{
+		Provider: "ollama", Model: "qwen3.5:4b",
+		OllamaURL: "http://127.0.0.1:11434/v1", LlamaCppURL: "http://127.0.0.1:9931/v1",
+	}, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := a.GetAssistantSettings()
+	if s.Provider != "ollama" || s.Model != "qwen3.5:4b" || s.OllamaURL == "" {
+		t.Fatalf("settings %+v", s)
+	}
+}
+
 func TestUpdateMethodsWhenDev(t *testing.T) {
 	a := &App{}
 	if a.GetAppVersion() != version {

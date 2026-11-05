@@ -1,11 +1,14 @@
 package assistant
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,11 +25,15 @@ var modelCache = struct {
 	at:   map[string]time.Time{},
 }
 
-// ListModels returns the free tool-capable chat models for a provider.
-func ListModels(ctx context.Context, provider, apiKey string, force bool) ([]Model, error) {
+// ListModels returns the tool-capable chat models for a provider.
+func ListModels(ctx context.Context, provider, apiKey, baseURL string, force bool) ([]Model, error) {
+	cacheKey := provider
+	if IsLocal(provider) {
+		cacheKey += "|" + baseURL
+	}
 	modelCache.Lock()
 	if !force {
-		if models, ok := modelCache.data[provider]; ok && time.Since(modelCache.at[provider]) < modelCacheTTL {
+		if models, ok := modelCache.data[cacheKey]; ok && time.Since(modelCache.at[cacheKey]) < modelCacheTTL {
 			out := append([]Model(nil), models...)
 			modelCache.Unlock()
 			return out, nil
@@ -41,6 +48,10 @@ func ListModels(ctx context.Context, provider, apiKey string, force bool) ([]Mod
 	switch provider {
 	case ProviderOpenRouter:
 		models, err = fetchOpenRouterModels(ctx)
+	case ProviderOllama:
+		models, err = fetchOllamaModels(ctx, baseURL)
+	case ProviderLlamaCpp:
+		models, err = fetchLlamaCppModels(ctx, baseURL)
 	default:
 		models, err = fetchGroqModels(ctx, apiKey)
 	}
@@ -49,10 +60,222 @@ func ListModels(ctx context.Context, provider, apiKey string, force bool) ([]Mod
 	}
 
 	modelCache.Lock()
-	modelCache.data[provider] = append([]Model(nil), models...)
-	modelCache.at[provider] = time.Now()
+	modelCache.data[cacheKey] = append([]Model(nil), models...)
+	modelCache.at[cacheKey] = time.Now()
 	modelCache.Unlock()
 	return models, nil
+}
+
+func fetchOllamaModels(ctx context.Context, baseURL string) ([]Model, error) {
+	base := normalizedURL(baseURL, OllamaBaseURL)
+	ids, err := fetchModelIDs(ctx, base+"/models")
+	if err != nil || len(ids) == 0 {
+		ids, err = fetchOllamaTags(ctx, localHost(base))
+	}
+	if err != nil {
+		return nil, err
+	}
+	host := localHost(base)
+	out := make([]Model, 0, len(ids))
+	for _, id := range ids {
+		model := Model{
+			ID: id, Name: id, Provider: ProviderOllama, SupportsTools: true, Free: true, Local: true,
+			Privacy: "Локальная модель, данные не покидают компьютер",
+		}
+		tools, contextLength, known := fetchOllamaShow(ctx, host, id)
+		if contextLength > 0 {
+			model.ContextLength = contextLength
+		}
+		if known {
+			model.SupportsTools = tools
+			if tools {
+				model.Note = "локальная модель · tools"
+			} else {
+				model.Note = "модель не сообщает поддержку tools"
+			}
+		} else {
+			model.Note = "локальная модель · tools не проверены"
+		}
+		out = append(out, model)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func fetchModelIDs(ctx context.Context, url string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "mvp-test-assistant")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s", resp.Status)
+	}
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(payload.Data))
+	for _, m := range payload.Data {
+		if strings.TrimSpace(m.ID) != "" {
+			ids = append(ids, m.ID)
+		}
+	}
+	return ids, nil
+}
+
+func fetchOllamaTags(ctx context.Context, host string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, host+"/api/tags", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("%s", resp.Status)
+	}
+	var payload struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(payload.Models))
+	for _, m := range payload.Models {
+		if strings.TrimSpace(m.Name) != "" {
+			out = append(out, m.Name)
+		}
+	}
+	return out, nil
+}
+
+func fetchOllamaShow(ctx context.Context, host, id string) (tools bool, contextLength int, known bool) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	body, _ := json.Marshal(map[string]string{"model": id})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, host+"/api/show", bytes.NewReader(body))
+	if err != nil {
+		return true, 0, false
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return true, 0, false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return true, 0, false
+	}
+	var payload struct {
+		Capabilities []string       `json:"capabilities"`
+		ModelInfo    map[string]any `json:"model_info"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return true, 0, false
+	}
+	tools = contains(payload.Capabilities, "tools")
+	for key, value := range payload.ModelInfo {
+		if strings.HasSuffix(key, ".context_length") {
+			switch v := value.(type) {
+			case float64:
+				contextLength = int(v)
+			case string:
+				contextLength, _ = strconv.Atoi(v)
+			}
+			break
+		}
+	}
+	return tools, contextLength, len(payload.Capabilities) > 0
+}
+
+func fetchLlamaCppModels(ctx context.Context, baseURL string) ([]Model, error) {
+	base := normalizedURL(baseURL, LlamaCppBaseURL)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/models", nil)
+	if err == nil {
+		resp, rerr := http.DefaultClient.Do(req)
+		if rerr == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				var payload struct {
+					Data []struct {
+						ID   string `json:"id"`
+						Meta struct {
+							Context int `json:"n_ctx_train"`
+						} `json:"meta"`
+					} `json:"data"`
+				}
+				if json.NewDecoder(resp.Body).Decode(&payload) == nil && len(payload.Data) > 0 {
+					out := make([]Model, 0, len(payload.Data))
+					for _, m := range payload.Data {
+						if m.ID == "" {
+							continue
+						}
+						out = append(out, llamaCppModel(m.ID, m.Meta.Context))
+					}
+					if len(out) > 0 {
+						return out, nil
+					}
+				}
+			}
+		}
+	}
+
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, localHost(base)+"/props", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("llama.cpp: %s", resp.Status)
+	}
+	var props struct {
+		ModelAlias string `json:"model_alias"`
+		ModelPath  string `json:"model_path"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&props); err != nil {
+		return nil, err
+	}
+	id := props.ModelAlias
+	if id == "" {
+		id = props.ModelPath
+	}
+	if id == "" {
+		return nil, fmt.Errorf("llama.cpp: модель не загружена")
+	}
+	return []Model{llamaCppModel(id, 0)}, nil
+}
+
+func llamaCppModel(id string, contextLength int) Model {
+	name := id
+	if strings.ContainsAny(id, `/\`) {
+		name = filepath.Base(id)
+	}
+	return Model{
+		ID: id, Name: name, Provider: ProviderLlamaCpp, ContextLength: contextLength,
+		SupportsTools: true, Free: true, Local: true,
+		Privacy: "Локальная модель, данные не покидают компьютер",
+		Note:    "llama.cpp: для tools нужен --jinja; рекомендуется --alias",
+	}
 }
 
 func fetchGroqModels(ctx context.Context, apiKey string) ([]Model, error) {

@@ -24,7 +24,7 @@ func TestLookupModelFilterOpenRouter(t *testing.T) {
 	openRouterBaseURL = srv.URL
 	defer func() { openRouterBaseURL = old }()
 
-	models, err := ListModels(context.Background(), ProviderOpenRouter, "", true)
+	models, err := ListModels(context.Background(), ProviderOpenRouter, "", "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestLookupModelFilterOpenRouter(t *testing.T) {
 }
 
 func TestGroqCuratedWithoutKey(t *testing.T) {
-	models, err := ListModels(context.Background(), ProviderGroq, "", true)
+	models, err := ListModels(context.Background(), ProviderGroq, "", "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,5 +162,94 @@ func TestFriendlyErrorRequestTooLarge(t *testing.T) {
 	}
 	if strings.Contains(got, "console.groq.com") {
 		t.Fatalf("raw billing URL leaked: %q", got)
+	}
+}
+
+func TestEndpointLocal(t *testing.T) {
+	s := Settings{Provider: ProviderOllama, OllamaURL: "http://127.0.0.1:11434"}
+	if got := Endpoint(s); got != "http://127.0.0.1:11434/v1" {
+		t.Fatalf("endpoint %q", got)
+	}
+	s.Provider = ProviderLlamaCpp
+	s.LlamaCppURL = "http://127.0.0.1:8080/v1/"
+	if got := Endpoint(s); got != "http://127.0.0.1:8080/v1" {
+		t.Fatalf("endpoint %q", got)
+	}
+}
+
+func TestOllamaModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/models":
+			fmt.Fprint(w, `{"data":[{"id":"qwen3.5:4b"},{"id":"embed:latest"}]}`)
+		case "/api/show":
+			var body struct {
+				Model string `json:"model"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.Model == "qwen3.5:4b" {
+				fmt.Fprint(w, `{"capabilities":["completion","tools"],"model_info":{"qwen3.context_length":32768}}`)
+			} else {
+				fmt.Fprint(w, `{"capabilities":["embedding"]}`)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	models, err := ListModels(context.Background(), ProviderOllama, "", srv.URL, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("models %+v", models)
+	}
+	byID := map[string]Model{}
+	for _, m := range models {
+		byID[m.ID] = m
+	}
+	if q := byID["qwen3.5:4b"]; !q.Local || !q.SupportsTools || q.ContextLength != 32768 {
+		t.Fatalf("qwen model %+v", q)
+	}
+	if e := byID["embed:latest"]; e.SupportsTools {
+		t.Fatalf("embedding model must not support tools: %+v", e)
+	}
+}
+
+func TestLlamaCppModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":[{"id":"/models/qwen3.5-4b-instruct-Q4_K_M.gguf","meta":{"n_ctx_train":32768}}]}`)
+	}))
+	defer srv.Close()
+	models, err := ListModels(context.Background(), ProviderLlamaCpp, "", srv.URL, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 || !models[0].Local || models[0].Name != "qwen3.5-4b-instruct-Q4_K_M.gguf" || models[0].ContextLength != 32768 {
+		t.Fatalf("models %+v", models)
+	}
+}
+
+func TestOllamaRequestOmitsToolChoiceAndAuth(t *testing.T) {
+	var sawAuth, sawToolChoice bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawAuth = r.Header.Get("Authorization") != ""
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		_, sawToolChoice = body["tool_choice"]
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	settings := Settings{Provider: ProviderOllama, Model: "qwen3.5:4b", OllamaURL: srv.URL, MaxToolRounds: 2}
+	history := []Message{{Role: "user", Content: "test"}}
+	if err := Run(context.Background(), settings, "", &history, []Tool{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if sawAuth {
+		t.Fatal("local request must not send Authorization")
+	}
+	if sawToolChoice {
+		t.Fatal("Ollama must not receive tool_choice")
 	}
 }

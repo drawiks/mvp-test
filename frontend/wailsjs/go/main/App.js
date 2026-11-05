@@ -114,8 +114,8 @@ export function InstallUpdate() {
   return window['go']['main']['App']['InstallUpdate']();
 }
 
-export function ListAssistantModels(arg1, arg2) {
-  return window['go']['main']['App']['ListAssistantModels'](arg1, arg2);
+export function ListAssistantModels(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ListAssistantModels'](arg1, arg2, arg3);
 }
 
 export function ListPresets() {

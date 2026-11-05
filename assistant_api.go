@@ -18,6 +18,8 @@ type AssistantSettings struct {
 	Temperature      float64 `json:"temperature"`
 	MaxToolRounds    int     `json:"maxToolRounds"`
 	SendPlayerNames  bool    `json:"sendPlayerNames"`
+	OllamaURL        string  `json:"ollamaUrl"`
+	LlamaCppURL      string  `json:"llamaCppUrl"`
 	HasGroqKey       bool    `json:"hasGroqKey"`
 	HasOpenRouterKey bool    `json:"hasOpenRouterKey"`
 }
@@ -29,6 +31,7 @@ type AssistantModel struct {
 	ContextLength int    `json:"contextLength"`
 	SupportsTools bool   `json:"supportsTools"`
 	Free          bool   `json:"free"`
+	Local         bool   `json:"local"`
 	Note          string `json:"note,omitempty"`
 	Privacy       string `json:"privacy,omitempty"`
 }
@@ -85,10 +88,14 @@ func (a *App) GetAssistantLimits() AssistantLimits {
 }
 
 func (a *App) assistantKey(provider string) string {
-	if provider == assistant.ProviderOpenRouter {
+	switch provider {
+	case assistant.ProviderOpenRouter:
 		return a.openRouterKey
+	case assistant.ProviderOllama, assistant.ProviderLlamaCpp:
+		return ""
+	default:
+		return a.groqKey
 	}
-	return a.groqKey
 }
 
 func (a *App) GetAssistantSettings() AssistantSettings {
@@ -96,17 +103,34 @@ func (a *App) GetAssistantSettings() AssistantSettings {
 	return AssistantSettings{
 		Provider: s.Provider, Model: s.Model, Temperature: s.Temperature,
 		MaxToolRounds: s.MaxToolRounds, SendPlayerNames: s.SendPlayerNames,
+		OllamaURL: s.OllamaURL, LlamaCppURL: s.LlamaCppURL,
 		HasGroqKey:       a.groqKey != "",
 		HasOpenRouterKey: a.openRouterKey != "",
 	}
 }
 
 func (a *App) SaveAssistantSettings(s AssistantSettings, groqKey, openRouterKey string) error {
-	if s.Provider != assistant.ProviderGroq && s.Provider != assistant.ProviderOpenRouter {
+	if s.Provider != assistant.ProviderGroq && s.Provider != assistant.ProviderOpenRouter &&
+		s.Provider != assistant.ProviderOllama && s.Provider != assistant.ProviderLlamaCpp {
 		return errors.New("неизвестный провайдер ассистента")
 	}
 	if strings.TrimSpace(s.Model) == "" {
 		return errors.New("выберите модель")
+	}
+	if s.OllamaURL == "" {
+		s.OllamaURL = assistant.OllamaBaseURL
+	}
+	if s.LlamaCppURL == "" {
+		s.LlamaCppURL = assistant.LlamaCppBaseURL
+	}
+	if assistant.IsLocal(s.Provider) {
+		url := s.OllamaURL
+		if s.Provider == assistant.ProviderLlamaCpp {
+			url = s.LlamaCppURL
+		}
+		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			return errors.New("URL локального сервера должен начинаться с http:// или https://")
+		}
 	}
 	if s.MaxToolRounds <= 0 {
 		s.MaxToolRounds = 6
@@ -123,7 +147,7 @@ func (a *App) SaveAssistantSettings(s AssistantSettings, groqKey, openRouterKey 
 	a.assistantSettings = assistant.Settings{
 		Provider: s.Provider, Model: strings.TrimSpace(s.Model),
 		Temperature: s.Temperature, MaxToolRounds: s.MaxToolRounds,
-		SendPlayerNames: s.SendPlayerNames,
+		SendPlayerNames: s.SendPlayerNames, OllamaURL: s.OllamaURL, LlamaCppURL: s.LlamaCppURL,
 	}
 	if strings.TrimSpace(groqKey) != "" {
 		a.groqKey = strings.TrimSpace(groqKey)
@@ -146,19 +170,28 @@ func (a *App) ClearAssistantKey(provider string) error {
 	return a.saveConfig()
 }
 
-func (a *App) ListAssistantModels(provider string, refresh bool) ([]AssistantModel, error) {
+func (a *App) ListAssistantModels(provider, baseURL string, refresh bool) ([]AssistantModel, error) {
 	if provider == "" {
 		provider = a.assistantSettings.Provider
 	}
-	if provider != assistant.ProviderGroq && provider != assistant.ProviderOpenRouter {
+	if provider != assistant.ProviderGroq && provider != assistant.ProviderOpenRouter &&
+		provider != assistant.ProviderOllama && provider != assistant.ProviderLlamaCpp {
 		return nil, errors.New("неизвестный провайдер ассистента")
 	}
 	if a.ctx == nil {
 		return nil, errors.New("приложение ещё не запущено")
 	}
+	if baseURL == "" {
+		switch provider {
+		case assistant.ProviderOllama:
+			baseURL = a.assistantSettings.OllamaURL
+		case assistant.ProviderLlamaCpp:
+			baseURL = a.assistantSettings.LlamaCppURL
+		}
+	}
 	ctx, cancel := context.WithTimeout(a.ctx, 20*time.Second)
 	defer cancel()
-	models, err := assistant.ListModels(ctx, provider, a.assistantKey(provider), refresh)
+	models, err := assistant.ListModels(ctx, provider, a.assistantKey(provider), baseURL, refresh)
 	if err != nil {
 		return nil, err
 	}
@@ -166,15 +199,18 @@ func (a *App) ListAssistantModels(provider string, refresh bool) ([]AssistantMod
 	for _, m := range models {
 		out = append(out, AssistantModel{
 			ID: m.ID, Name: m.Name, Provider: m.Provider, ContextLength: m.ContextLength,
-			SupportsTools: m.SupportsTools, Free: m.Free, Note: m.Note, Privacy: m.Privacy,
+			SupportsTools: m.SupportsTools, Free: m.Free, Local: m.Local, Note: m.Note, Privacy: m.Privacy,
 		})
 	}
 	return out, nil
 }
 
 func (a *App) TestAssistantConnection() error {
+	if strings.TrimSpace(a.assistantSettings.Model) == "" {
+		return errors.New("выберите модель")
+	}
 	key := a.assistantKey(a.assistantSettings.Provider)
-	if key == "" {
+	if key == "" && !assistant.IsLocal(a.assistantSettings.Provider) {
 		return errors.New("сначала укажите API-ключ")
 	}
 	if a.ctx == nil {
@@ -200,8 +236,12 @@ func (a *App) SendAssistantMessage(text string) error {
 		return errors.New("ассистент уже отвечает")
 	}
 	settings := a.assistantSettings
+	if strings.TrimSpace(settings.Model) == "" {
+		a.assistantMu.Unlock()
+		return errors.New("выберите модель")
+	}
 	key := a.assistantKey(settings.Provider)
-	if key == "" {
+	if key == "" && !assistant.IsLocal(settings.Provider) {
 		a.assistantMu.Unlock()
 		return errors.New("укажите API-ключ в настройках ассистента")
 	}
@@ -251,7 +291,7 @@ func (a *App) SendAssistantMessage(text string) error {
 			if errors.Is(err, context.Canceled) {
 				message = "запрос отменён"
 			} else {
-				message = assistant.FriendlyError(err)
+				message = assistant.FriendlyErrorFor(err, settings.Provider)
 				var apiErr *assistant.APIError
 				if errors.As(err, &apiErr) {
 					detail = apiErr.Body
@@ -301,10 +341,14 @@ func (a *App) ClearAssistantHistory() {
 }
 
 func assistantHistoryBudget(provider string) int {
-	if provider == assistant.ProviderOpenRouter {
+	switch provider {
+	case assistant.ProviderOpenRouter:
 		return 40000
+	case assistant.ProviderOllama, assistant.ProviderLlamaCpp:
+		return 16000
+	default:
+		return 18000
 	}
-	return 18000
 }
 
 func messageChars(m assistant.Message) int {

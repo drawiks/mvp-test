@@ -8,6 +8,8 @@ import (
 const (
 	ProviderGroq       = "groq"
 	ProviderOpenRouter = "openrouter"
+	ProviderOllama     = "ollama"
+	ProviderLlamaCpp   = "llamacpp"
 )
 
 // Settings are the persisted assistant options. API keys are not part of this
@@ -18,6 +20,8 @@ type Settings struct {
 	Temperature     float64 `json:"temperature"`
 	MaxToolRounds   int     `json:"maxToolRounds"`
 	SendPlayerNames bool    `json:"sendPlayerNames"`
+	OllamaURL       string  `json:"ollamaUrl"`
+	LlamaCppURL     string  `json:"llamaCppUrl"`
 }
 
 func DefaultSettings() Settings {
@@ -26,6 +30,8 @@ func DefaultSettings() Settings {
 		Model:         "qwen/qwen3.8-27b",
 		Temperature:   0.2,
 		MaxToolRounds: 6,
+		OllamaURL:     OllamaBaseURL,
+		LlamaCppURL:   LlamaCppBaseURL,
 	}
 }
 
@@ -37,6 +43,7 @@ type Model struct {
 	ContextLength int    `json:"contextLength"`
 	SupportsTools bool   `json:"supportsTools"`
 	Free          bool   `json:"free"`
+	Local         bool   `json:"local"`
 	Note          string `json:"note,omitempty"`
 	Privacy       string `json:"privacy,omitempty"`
 }

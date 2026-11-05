@@ -22,7 +22,7 @@ const systemPrompt = `Ты — ассистент по разработке MVP-
 // Run executes an assistant turn, including any tool calls, and appends all
 // messages to history.
 func Run(ctx context.Context, settings Settings, apiKey string, history *[]Message, tools []Tool, emit func(Event)) error {
-	if strings.TrimSpace(apiKey) == "" {
+	if strings.TrimSpace(apiKey) == "" && !IsLocal(settings.Provider) {
 		return fmt.Errorf("не задан API-ключ для %s", ProviderName(settings.Provider))
 	}
 	rounds := settings.MaxToolRounds

@@ -66,11 +66,15 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		})
 	}
 
+	toolChoice := "auto"
+	if IsLocal(settings.Provider) {
+		toolChoice = ""
+	}
 	body, err := json.Marshal(chatRequest{
 		Model:       settings.Model,
 		Messages:    messages,
 		Tools:       defs,
-		ToolChoice:  "auto",
+		ToolChoice:  toolChoice,
 		Temperature: settings.Temperature,
 		MaxTokens:   1024,
 		Stream:      true,
@@ -79,12 +83,14 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		return Message{}, nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, BaseURL(settings.Provider)+"/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, Endpoint(settings)+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return Message{}, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if strings.TrimSpace(apiKey) != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 	req.Header.Set("User-Agent", "mvp-test-assistant")
 	if settings.Provider == ProviderOpenRouter {
 		req.Header.Set("HTTP-Referer", "https://github.com/drawiks/mvp-test")

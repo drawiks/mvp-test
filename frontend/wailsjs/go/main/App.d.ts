@@ -59,7 +59,7 @@ export function ImportVariableDialog():Promise<formula.Variable|boolean>;
 
 export function InstallUpdate():Promise<void>;
 
-export function ListAssistantModels(arg1:string,arg2:boolean):Promise<Array<main.AssistantModel>>;
+export function ListAssistantModels(arg1:string,arg2:string,arg3:boolean):Promise<Array<main.AssistantModel>>;
 
 export function ListPresets():Promise<Array<formula.Preset>>;
 
