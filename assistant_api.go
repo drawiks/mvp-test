@@ -282,6 +282,8 @@ func (a *App) SendAssistantMessage(text string) error {
 					a.assistantMu.Unlock()
 					runtime.EventsEmit(a.ctx, "assistantLimits", toAssistantLimits(*e.Rate))
 				}
+			case "rateWait":
+				runtime.EventsEmit(a.ctx, "assistantWait", map[string]any{"seconds": e.WaitSeconds, "reason": e.WaitReason})
 			}
 		}
 		err := assistant.Run(ctx, settings, key, &history, a.assistantTools(), emit)
@@ -347,7 +349,7 @@ func assistantHistoryBudget(provider string) int {
 	case assistant.ProviderOllama, assistant.ProviderLlamaCpp:
 		return 16000
 	default:
-		return 18000
+		return 12000
 	}
 }
 

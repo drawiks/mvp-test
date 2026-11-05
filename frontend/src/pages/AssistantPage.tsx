@@ -69,6 +69,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
   const [proposal, setProposal] = useState<main.AssistantProposal | null>(null);
   const [diff, setDiff] = useState<main.FormulaDiff | null>(null);
   const [limits, setLimits] = useState<main.AssistantLimits | null>(null);
+  const [waitInfo, setWaitInfo] = useState<{ seconds: number; reason: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const refreshLimits = async () => {
@@ -134,7 +135,11 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       }
     })();
 
+    onEvent("assistantWait", (payload: { seconds?: number; reason?: string } | null) => {
+      setWaitInfo({ seconds: payload?.seconds ?? 0, reason: payload?.reason ?? "" });
+    });
     onEvent("assistantDelta", (payload: { text?: string } | null) => {
+      setWaitInfo(null);
       const text = payload?.text ?? "";
       if (!text) return;
       setMessages((prev) => {
@@ -183,6 +188,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     });
     onEvent("assistantDone", (payload: { ok?: boolean; error?: string; detail?: string } | null) => {
       setStreaming(false);
+      setWaitInfo(null);
       if (!payload?.ok) {
         setError(payload?.error ?? "Ошибка ассистента");
         setErrorDetail(payload?.detail ?? "");
@@ -195,6 +201,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
       offEvent("assistantToolResult");
       offEvent("assistantProposal");
       offEvent("assistantLimits");
+      offEvent("assistantWait");
       offEvent("assistantDone");
     };
   }, []);
@@ -279,6 +286,7 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
     setDiff(null);
     setMessages((prev) => [...prev, { role: "user", text, tools: [] }]);
     setStreaming(true);
+    setWaitInfo(null);
     try {
       await Bindings.SendAssistantMessage(text);
     } catch (e) {
@@ -492,6 +500,12 @@ export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEdito
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {waitInfo && (
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-sm text-amber-200">
+          Лимит Groq: ждём {waitInfo.seconds} с… {waitInfo.reason === "tokens" ? "(токены)" : "(запросы)"}
         </div>
       )}
 

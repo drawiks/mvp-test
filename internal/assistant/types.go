@@ -103,14 +103,16 @@ type Proposal struct {
 
 // Event is emitted while an assistant turn is running.
 type Event struct {
-	Type       string
-	Text       string
-	ToolName   string
-	ToolArgs   string
-	ToolResult string
-	Proposal   *Proposal
-	Rate       *RateLimit
-	Err        error
+	Type        string
+	Text        string
+	ToolName    string
+	ToolArgs    string
+	ToolResult  string
+	Proposal    *Proposal
+	Rate        *RateLimit
+	WaitSeconds int
+	WaitReason  string
+	Err         error
 }
 
 // APIError is a non-2xx response from a provider.

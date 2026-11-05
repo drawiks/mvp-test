@@ -39,15 +39,48 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 	for _, tool := range tools {
 		byName[tool.Name] = tool
 	}
+	limiter := newRateLimiter(settings.Provider)
+	toolResultLimit := maxToolResultChars
+	if settings.Provider == ProviderGroq {
+		toolResultLimit = 3000
+	}
 
 	for round := 0; round <= rounds; round++ {
 		messages := make([]Message, 0, len(*history)+1)
 		messages = append(messages, Message{Role: "system", Content: systemPrompt})
 		messages = append(messages, *history...)
 
-		answer, _, err := streamChat(ctx, settings, apiKey, messages, tools, emit)
-		if err != nil {
-			return err
+		estimated := estimateRequestTokens(messages, tools, 1024)
+		var (
+			answer Message
+			rate   *RateLimit
+			err    error
+		)
+		for attempt := 0; ; attempt++ {
+			if err = limiter.Wait(ctx, estimated, emit); err != nil {
+				return err
+			}
+			emitted := false
+			wrapped := func(e Event) {
+				if e.Type == "delta" {
+					emitted = true
+				}
+				if emit != nil {
+					emit(e)
+				}
+			}
+			answer, rate, err = streamChat(ctx, settings, apiKey, messages, tools, wrapped)
+			limiter.Update(rate)
+			if err == nil {
+				break
+			}
+			delay, retry := limiter.RetryDelay(err, rate, emitted)
+			if !retry || attempt >= maxRateRetries-1 {
+				return err
+			}
+			if werr := limiter.WaitForRetry(ctx, delay, emit); werr != nil {
+				return werr
+			}
 		}
 		*history = append(*history, answer)
 		if len(answer.ToolCalls) == 0 {
@@ -95,7 +128,7 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 				}
 				result = string(raw)
 			}
-			if len(result) > maxToolResultChars {
+			if len(result) > toolResultLimit {
 				result = `{"error":"результат инструмента слишком большой; уточните запрос или используйте более точечный инструмент"}`
 			}
 			if emit != nil {
@@ -105,6 +138,23 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 		}
 	}
 	return fmt.Errorf("ассистент превысил лимит шагов инструментов (%d)", rounds)
+}
+
+func estimateRequestTokens(messages []Message, tools []Tool, maxTokens int) int {
+	chars := 0
+	for _, m := range messages {
+		chars += len(m.Content) + len(m.Name)
+		for _, call := range m.ToolCalls {
+			chars += len(call.Function.Name) + len(call.Function.Arguments)
+		}
+	}
+	for _, tool := range tools {
+		chars += len(tool.Name) + len(tool.Description)
+		if raw, err := json.Marshal(tool.Parameters); err == nil {
+			chars += len(raw)
+		}
+	}
+	return int(float64(chars)/3*1.15) + maxTokens
 }
 
 func truncate(s string, n int) string {

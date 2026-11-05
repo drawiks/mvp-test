@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLookupModelFilterOpenRouter(t *testing.T) {
@@ -251,5 +252,55 @@ func TestOllamaRequestOmitsToolChoiceAndAuth(t *testing.T) {
 	}
 	if sawToolChoice {
 		t.Fatal("Ollama must not receive tool_choice")
+	}
+}
+
+func TestResetDuration(t *testing.T) {
+	cases := map[string]time.Duration{
+		"2m59.56s": 2*time.Minute + 59*time.Second + 560*time.Millisecond,
+		"1h":       time.Hour,
+		"45":       45 * time.Second,
+		"":         0,
+	}
+	for in, want := range cases {
+		if got := resetDuration(in); got != want {
+			t.Errorf("resetDuration(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+func TestRateLimiterMinInterval(t *testing.T) {
+	l := newRateLimiter(ProviderGroq)
+	now := time.Unix(1000, 0)
+	l.now = func() time.Time { return now }
+	var slept time.Duration
+	l.sleep = func(ctx context.Context, d time.Duration) error {
+		slept = d
+		now = now.Add(d)
+		return nil
+	}
+	if err := l.Wait(context.Background(), 100, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Wait(context.Background(), 100, nil); err != nil {
+		t.Fatal(err)
+	}
+	if slept != 2*time.Second {
+		t.Fatalf("slept %v", slept)
+	}
+}
+
+func TestRateLimiterRetryDelay(t *testing.T) {
+	l := newRateLimiter(ProviderGroq)
+	short := &APIError{Status: 429, RetryAfter: "3"}
+	if d, ok := l.RetryDelay(short, nil, false); !ok || d != 3*time.Second {
+		t.Fatalf("short retry %v %v", d, ok)
+	}
+	long := &APIError{Status: 429, RetryAfter: "300"}
+	if _, ok := l.RetryDelay(long, nil, false); ok {
+		t.Fatal("long retry must not be automatic")
+	}
+	if _, ok := l.RetryDelay(short, nil, true); ok {
+		t.Fatal("must not retry after partial stream")
 	}
 }
