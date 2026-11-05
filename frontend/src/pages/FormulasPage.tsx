@@ -103,25 +103,52 @@ function PlayerPreview({ preview }: { preview: Preview }) {
   );
 }
 
-export default function FormulasPage({ presets, activeId, onChange }: { presets: formula.Preset[]; activeId: string; onChange: () => Promise<void> | void }) {
+type FormulasPageProps = {
+  presets: formula.Preset[];
+  activeId: string;
+  onChange: () => Promise<void> | void;
+  pendingFormula?: { name: string; description: string; expression: string; nonce: number } | null;
+  onPendingConsumed?: () => void;
+};
+
+export default function FormulasPage({ presets, activeId, onChange, pendingFormula, onPendingConsumed }: FormulasPageProps) {
   const [activePreset, setActivePreset] = useState(presets.find((p) => p.id === activeId) ?? null);
   const [draftExpr, setDraftExpr] = useState("");
   const [variables, setVariables] = useState<formula.Variable[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [draftOverride, setDraftOverride] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveGen = useRef(0);
   const editorRef = useRef<FormulaEditorHandle>(null);
 
   useEffect(() => {
+    if (draftOverride) return;
     const p = presets.find((p) => p.id === activeId) ?? null;
     setActivePreset(p);
     if (p) {
       setDraftExpr(p.kind === "expression" ? p.expression : linearToExpression(p.weights ?? {}, EDITABLE));
       void Bindings.ListVariables().then(setVariables);
     }
-  }, [activeId, presets]);
+  }, [activeId, presets, draftOverride]);
+
+  useEffect(() => {
+    if (!pendingFormula) return;
+    const draft: formula.Preset = {
+      id: `assistant-draft-${pendingFormula.nonce}`,
+      name: pendingFormula.name || "Черновик ассистента",
+      kind: "expression",
+      expression: pendingFormula.expression,
+      weights: {},
+    };
+    setDraftOverride(true);
+    setActivePreset(draft);
+    setDraftExpr(pendingFormula.expression);
+    setShowWeightSliders(false);
+    void Bindings.ListVariables().then(setVariables);
+    onPendingConsumed?.();
+  }, [pendingFormula, onPendingConsumed]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -160,6 +187,7 @@ export default function FormulasPage({ presets, activeId, onChange }: { presets:
 
   const selectPreset = useCallback(
     async (id: string) => {
+      setDraftOverride(false);
       try {
         await Bindings.SetActivePreset(id);
       } catch (e) {
@@ -176,6 +204,10 @@ export default function FormulasPage({ presets, activeId, onChange }: { presets:
       const next: formula.Preset = { ...activePreset, kind: "expression", expression: draftExpr.trim() };
       invalidate();
       await Bindings.UpsertPreset(next);
+      if (activePreset.id.startsWith("assistant-draft-")) {
+        await Bindings.SetActivePreset(next.id);
+        setDraftOverride(false);
+      }
       await Bindings.Recompute();
       await onChange();
       toast.success("Формула сохранена");
@@ -343,6 +375,11 @@ export default function FormulasPage({ presets, activeId, onChange }: { presets:
                     Встроенная формула — только просмотр
                   </Badge>
                 )}
+                {activePreset.id.startsWith("assistant-draft-") && (
+                  <Badge variant="gold" className="text-[10px]">
+                    Черновик ассистента
+                  </Badge>
+                )}
               </div>
 
               {isLinear && (
@@ -404,7 +441,17 @@ export default function FormulasPage({ presets, activeId, onChange }: { presets:
 
               {!isBuiltin && (
                 <div className="mt-auto flex justify-end gap-2 border-t border-border pt-4">
-                  <Button variant="outline" onClick={() => setDraftExpr(activePreset.kind === "expression" ? activePreset.expression : linearToExpression(activePreset.weights ?? {}, EDITABLE))}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (activePreset.id.startsWith("assistant-draft-")) {
+                        setDraftOverride(false);
+                        setActivePreset(presets.find((p) => p.id === activeId) ?? null);
+                      } else {
+                        setDraftExpr(activePreset.kind === "expression" ? activePreset.expression : linearToExpression(activePreset.weights ?? {}, EDITABLE));
+                      }
+                    }}
+                  >
                     Отменить
                   </Button>
                   <Button onClick={handleSave}>Сохранить</Button>

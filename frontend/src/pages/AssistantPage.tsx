@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import * as Bindings from "../../wailsjs/go/main/App";
 import type { main } from "../../wailsjs/go/models";
 import { onEvent, offEvent } from "@/lib/wails";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,9 +21,21 @@ const DEFAULT_MODEL: Record<string, string> = {
 type Props = {
   onChange: () => Promise<void> | void;
   onOpenFormulas: () => void;
+  onApplyToEditor: (p: main.AssistantProposal) => void;
 };
 
-export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
+function limitsLabel(l: main.AssistantLimits | null, provider: string): string {
+  if (!l || l.provider !== provider) return "";
+  if (provider === "openrouter" && l.freeRequestsLimit > 0) {
+    return `${l.freeRequestsLimit - l.freeRequestsRemaining}/${l.freeRequestsLimit} free`;
+  }
+  const parts: string[] = [];
+  if (l.requestsLimit > 0) parts.push(`${l.requestsRemaining}/${l.requestsLimit} RPD`);
+  if (l.tokensLimit > 0) parts.push(`${Math.round(l.tokensRemaining / 1000)}k/${Math.round(l.tokensLimit / 1000)}k TPM`);
+  return parts.join(" · ");
+}
+
+export default function AssistantPage({ onChange, onOpenFormulas, onApplyToEditor }: Props) {
   const [settings, setSettings] = useState<main.AssistantSettings | null>(null);
   const [models, setModels] = useState<main.AssistantModel[]>([]);
   const [groqKey, setGroqKey] = useState("");
@@ -33,12 +46,32 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
   const [loadingModels, setLoadingModels] = useState(false);
   const [error, setError] = useState("");
   const [proposal, setProposal] = useState<main.AssistantProposal | null>(null);
+  const [diff, setDiff] = useState<main.FormulaDiff | null>(null);
+  const [limits, setLimits] = useState<main.AssistantLimits | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const reloadModels = async (provider: string, refresh = false) => {
+  const refreshLimits = async () => {
+    try {
+      setLimits(await Bindings.GetAssistantLimits());
+    } catch {
+      // Limits are advisory; ignore transient failures.
+    }
+  };
+
+  const showProposal = async (p: main.AssistantProposal) => {
+    setProposal(p);
+    try {
+      const current = await Bindings.GetActiveFormulaExpression();
+      setDiff(await Bindings.DiffFormula(current, p.expression));
+    } catch {
+      setDiff(null);
+    }
+  };
+
+  const reloadModels = async (provider: string) => {
     setLoadingModels(true);
     try {
-      const list = await Bindings.ListAssistantModels(provider, refresh);
+      const list = await Bindings.ListAssistantModels(provider, false);
       setModels(list);
       setSettings((s) => {
         if (!s) return s;
@@ -46,10 +79,17 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
         return { ...s, model: DEFAULT_MODEL[provider] ?? list[0]?.id ?? s.model };
       });
     } catch (e) {
-      if (refresh) setError(String(e));
+      setError(String(e));
     } finally {
       setLoadingModels(false);
     }
+  };
+
+  const persist = async (next: main.AssistantSettings, keys?: { groq?: string; openrouter?: string }) => {
+    await Bindings.SaveAssistantSettings(next, keys?.groq ?? "", keys?.openrouter ?? "");
+    const fresh = await Bindings.GetAssistantSettings();
+    setSettings(fresh);
+    return fresh;
   };
 
   useEffect(() => {
@@ -58,6 +98,16 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
         const s = await Bindings.GetAssistantSettings();
         setSettings(s);
         await reloadModels(s.provider);
+        await refreshLimits();
+        const history = await Bindings.GetAssistantHistory();
+        setMessages(
+          (history.messages ?? []).map((m) => ({
+            role: m.role === "assistant" ? ("assistant" as const) : ("user" as const),
+            text: m.text,
+            tools: [],
+          }))
+        );
+        if (history.proposal) await showProposal(history.proposal);
       } catch (e) {
         setError(String(e));
       }
@@ -105,17 +155,22 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
       });
     });
     onEvent("assistantProposal", (payload: main.AssistantProposal | null) => {
-      if (payload) setProposal(payload);
+      if (payload) void showProposal(payload);
+    });
+    onEvent("assistantLimits", (payload: main.AssistantLimits | null) => {
+      if (payload) setLimits(payload);
     });
     onEvent("assistantDone", (payload: { ok?: boolean; error?: string } | null) => {
       setStreaming(false);
       if (!payload?.ok) setError(payload?.error ?? "Ошибка ассистента");
+      void refreshLimits();
     });
     return () => {
       offEvent("assistantDelta");
       offEvent("assistantTool");
       offEvent("assistantToolResult");
       offEvent("assistantProposal");
+      offEvent("assistantLimits");
       offEvent("assistantDone");
     };
   }, []);
@@ -127,12 +182,11 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
   const saveSettings = async () => {
     if (!settings) return;
     try {
-      await Bindings.SaveAssistantSettings(settings, groqKey, openRouterKey);
+      await persist(settings, { groq: groqKey, openrouter: openRouterKey });
       setGroqKey("");
       setOpenRouterKey("");
-      const s = await Bindings.GetAssistantSettings();
-      setSettings(s);
-      await reloadModels(s.provider, true);
+      await reloadModels(settings.provider);
+      await refreshLimits();
       toast.success("Настройки ассистента сохранены");
     } catch (e) {
       setError(String(e));
@@ -140,8 +194,11 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
   };
 
   const testConnection = async () => {
+    if (!settings) return;
     try {
+      await persist(settings);
       await Bindings.TestAssistantConnection();
+      await refreshLimits();
       toast.success("Подключение работает");
       setError("");
     } catch (e) {
@@ -152,18 +209,44 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
 
   const changeProvider = async (provider: string) => {
     if (!settings) return;
-    const next = { ...settings, provider, model: DEFAULT_MODEL[provider] ?? "" };
+    const list = await Bindings.ListAssistantModels(provider, false).catch(() => [] as main.AssistantModel[]);
+    setModels(list);
+    const model = DEFAULT_MODEL[provider] ?? list[0]?.id ?? "";
+    const next = { ...settings, provider, model };
     setSettings(next);
     setError("");
-    await reloadModels(provider);
+    try {
+      await persist(next);
+      await refreshLimits();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const changeModel = async (model: string) => {
+    if (!settings) return;
+    const next = { ...settings, model };
+    setSettings(next);
+    try {
+      await persist(next);
+    } catch (e) {
+      setError(String(e));
+    }
   };
 
   const send = async () => {
     const text = input.trim();
-    if (!text || streaming) return;
+    if (!text || streaming || !settings) return;
+    try {
+      await persist(settings);
+    } catch (e) {
+      setError(String(e));
+      return;
+    }
     setInput("");
     setError("");
     setProposal(null);
+    setDiff(null);
     setMessages((prev) => [...prev, { role: "user", text, tools: [] }]);
     setStreaming(true);
     try {
@@ -178,6 +261,7 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
     await Bindings.ClearAssistantHistory();
     setMessages([]);
     setProposal(null);
+    setDiff(null);
     setError("");
   };
 
@@ -201,14 +285,36 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
 
   const currentModel = models.find((m) => m.id === settings?.model);
   const keySet = settings?.provider === "openrouter" ? settings?.hasOpenRouterKey : settings?.hasGroqKey;
+  const providerLabel = settings?.provider === "openrouter" ? "OpenRouter" : "GroqCloud";
+  const limitText = limitsLabel(limits, settings?.provider ?? "");
+  const limitLow =
+    limits &&
+    ((limits.requestsLimit > 0 && limits.requestsRemaining <= limits.requestsLimit * 0.1) ||
+      (limits.freeRequestsLimit > 0 && limits.freeRequestsRemaining <= limits.freeRequestsLimit * 0.1));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-lg font-bold">
-          <Bot className="size-5" /> Ассистент формулы
-        </h2>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="flex shrink-0 items-center gap-2 text-lg font-bold">
+            <Bot className="size-5" /> Ассистент формулы
+          </h2>
+          {settings && (
+            <div className="flex min-w-0 items-center gap-1.5 text-[11px]">
+              <Badge variant="outline">{providerLabel}</Badge>
+              <span className="max-w-56 truncate font-mono text-muted-foreground" title={settings.model}>
+                {currentModel?.name ?? settings.model}
+              </span>
+              <Badge variant="gold" className="text-[9px]">FREE</Badge>
+              {limitText && (
+                <span className={cn("font-mono tabular-nums", limitLow ? "text-destructive" : "text-muted-foreground")}>
+                  {limitText}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           {streaming && (
             <Button variant="outline" size="sm" onClick={() => void Bindings.CancelAssistant()}>
               <Square className="mr-1.5 size-3.5" /> Остановить
@@ -234,10 +340,7 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
           </div>
           <div className="space-y-1">
             <label className="label-caps">Бесплатная модель</label>
-            <Select
-              value={settings.model}
-              onValueChange={(v) => setSettings({ ...settings, model: v })}
-            >
+            <Select value={settings.model} onValueChange={(v) => void changeModel(v)}>
               <SelectTrigger className="h-8 w-full">
                 <SelectValue placeholder="Выберите модель" />
               </SelectTrigger>
@@ -253,16 +356,18 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
               </SelectContent>
             </Select>
             {currentModel?.note && <p className="text-[10px] text-muted-foreground">{currentModel.note}</p>}
+            {currentModel?.privacy && <p className="text-[10px] text-muted-foreground">{currentModel.privacy}</p>}
           </div>
           <div className="flex items-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => void reloadModels(settings.provider, true)} disabled={loadingModels}>
+            <Button variant="outline" size="sm" onClick={() => void reloadModels(settings.provider)} disabled={loadingModels}>
               <RefreshCw className={cn("mr-1.5 size-3.5", loadingModels && "animate-spin")} /> Обновить
             </Button>
+            <Button variant="ghost" size="sm" onClick={() => void refreshLimits()}>Лимиты</Button>
           </div>
 
           <div className="space-y-1 md:col-span-3">
             <label className="label-caps">
-              API-ключ {settings.provider === "groq" ? "GroqCloud" : "OpenRouter"}
+              API-ключ {providerLabel}
               {keySet && <span className="ml-2 normal-case text-radiant">сохранён</span>}
             </label>
             <div className="flex flex-wrap gap-2">
@@ -295,10 +400,19 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
               <input
                 type="checkbox"
                 checked={settings.sendPlayerNames}
-                onChange={(e) => setSettings({ ...settings, sendPlayerNames: e.target.checked })}
+                onChange={(e) => {
+                  const next = { ...settings, sendPlayerNames: e.target.checked };
+                  setSettings(next);
+                  void persist(next).catch((err) => setError(String(err)));
+                }}
               />
               Отправлять имена игроков и Steam ID (по умолчанию маскируются)
             </label>
+            {settings.provider === "openrouter" && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[11px] text-amber-200">
+                OpenRouter free-модели: часть маршрутов может использовать данные для обучения. Не отправляйте секретные формулы; имена по умолчанию маскируются.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -353,21 +467,54 @@ export default function AssistantPage({ onChange, onOpenFormulas }: Props) {
 
       {proposal && (
         <div className="space-y-2 rounded-lg border border-gold/40 bg-gold/5 p-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="text-sm font-semibold">{proposal.name}</div>
               {proposal.description && <div className="text-[11px] text-muted-foreground">{proposal.description}</div>}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => void navigator.clipboard.writeText(proposal.expression)}>
                 <Copy className="mr-1.5 size-3.5" /> Копировать
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => onApplyToEditor(proposal)}>
+                Применить в редактор
               </Button>
               <Button size="sm" onClick={() => void saveProposal()}>Сохранить как формулу</Button>
             </div>
           </div>
-          <pre className="max-h-32 overflow-auto rounded border border-border bg-background p-2 font-mono text-[11px] whitespace-pre-wrap break-all">
-            {proposal.expression}
-          </pre>
+          {diff && (
+            <div className="grid gap-2 md:grid-cols-2">
+              <div>
+                <div className="label-caps mb-1">Сейчас</div>
+                <pre className="max-h-32 overflow-auto rounded border border-border bg-background p-2 font-mono text-[11px] whitespace-pre-wrap break-all">
+                  {diff.current || "—"}
+                </pre>
+              </div>
+              <div>
+                <div className="label-caps mb-1">Предложено</div>
+                <pre className="max-h-32 overflow-auto rounded border border-border bg-background p-2 font-mono text-[11px] whitespace-pre-wrap break-all">
+                  {diff.proposed}
+                </pre>
+              </div>
+              {diff.added.length > 0 && (
+                <div className="text-[11px] md:col-span-2">
+                  <span className="text-radiant">Добавлено: </span>
+                  {diff.added.join(" · ")}
+                </div>
+              )}
+              {diff.removed.length > 0 && (
+                <div className="text-[11px] md:col-span-2">
+                  <span className="text-destructive">Удалено: </span>
+                  {diff.removed.join(" · ")}
+                </div>
+              )}
+            </div>
+          )}
+          {!diff && (
+            <pre className="max-h-32 overflow-auto rounded border border-border bg-background p-2 font-mono text-[11px] whitespace-pre-wrap break-all">
+              {proposal.expression}
+            </pre>
+          )}
         </div>
       )}
 

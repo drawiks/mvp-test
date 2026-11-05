@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"time"
 
@@ -29,12 +30,58 @@ type AssistantModel struct {
 	SupportsTools bool   `json:"supportsTools"`
 	Free          bool   `json:"free"`
 	Note          string `json:"note,omitempty"`
+	Privacy       string `json:"privacy,omitempty"`
 }
 
 type AssistantProposal struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Expression  string `json:"expression"`
+}
+
+type AssistantLimits struct {
+	Provider              string    `json:"provider"`
+	RequestsLimit         int       `json:"requestsLimit"`
+	RequestsRemaining     int       `json:"requestsRemaining"`
+	RequestsReset         string    `json:"requestsReset"`
+	TokensLimit           int       `json:"tokensLimit"`
+	TokensRemaining       int       `json:"tokensRemaining"`
+	TokensReset           string    `json:"tokensReset"`
+	FreeRequestsLimit     int       `json:"freeRequestsLimit"`
+	FreeRequestsRemaining int       `json:"freeRequestsRemaining"`
+	FreeRequestsReset     string    `json:"freeRequestsReset"`
+	CreditsRemaining      *float64  `json:"creditsRemaining,omitempty"`
+	RetryAfter            string    `json:"retryAfter"`
+	ReceivedAt            time.Time `json:"receivedAt"`
+}
+
+func toAssistantLimits(r assistant.RateLimit) AssistantLimits {
+	return AssistantLimits{
+		Provider: r.Provider, RequestsLimit: r.RequestsLimit, RequestsRemaining: r.RequestsRemaining,
+		RequestsReset: r.RequestsReset, TokensLimit: r.TokensLimit, TokensRemaining: r.TokensRemaining,
+		TokensReset: r.TokensReset, FreeRequestsLimit: r.FreeRequestsLimit,
+		FreeRequestsRemaining: r.FreeRequestsRemaining, FreeRequestsReset: r.FreeRequestsReset,
+		CreditsRemaining: r.CreditsRemaining, RetryAfter: r.RetryAfter, ReceivedAt: r.ReceivedAt,
+	}
+}
+
+func (a *App) GetAssistantLimits() AssistantLimits {
+	a.assistantMu.Lock()
+	limits := a.assistantLimits
+	a.assistantMu.Unlock()
+	provider := a.assistantSettings.Provider
+	if provider == assistant.ProviderOpenRouter && a.assistantKey(provider) != "" && a.ctx != nil {
+		ctx, cancel := context.WithTimeout(a.ctx, 15*time.Second)
+		defer cancel()
+		if fetched, err := assistant.FetchOpenRouterLimits(ctx, a.assistantKey(provider)); err == nil {
+			limits = *fetched
+			a.assistantMu.Lock()
+			a.assistantLimits = limits
+			a.assistantLimitsAt = time.Now()
+			a.assistantMu.Unlock()
+		}
+	}
+	return toAssistantLimits(limits)
 }
 
 func (a *App) assistantKey(provider string) string {
@@ -119,7 +166,7 @@ func (a *App) ListAssistantModels(provider string, refresh bool) ([]AssistantMod
 	for _, m := range models {
 		out = append(out, AssistantModel{
 			ID: m.ID, Name: m.Name, Provider: m.Provider, ContextLength: m.ContextLength,
-			SupportsTools: m.SupportsTools, Free: m.Free, Note: m.Note,
+			SupportsTools: m.SupportsTools, Free: m.Free, Note: m.Note, Privacy: m.Privacy,
 		})
 	}
 	return out, nil
@@ -171,7 +218,8 @@ func (a *App) SendAssistantMessage(text string) error {
 			cancel()
 			a.assistantMu.Lock()
 			if a.assistantGeneration == generation {
-				a.assistantHistory = history
+				a.assistantHistory = limitHistoryForStorage(history, 60)
+				a.saveAssistantHistoryLocked()
 			}
 			a.assistantRunning = false
 			a.assistantCancel = nil
@@ -186,6 +234,14 @@ func (a *App) SendAssistantMessage(text string) error {
 				runtime.EventsEmit(a.ctx, "assistantTool", map[string]any{"name": e.ToolName, "args": e.ToolArgs})
 			case "toolResult":
 				runtime.EventsEmit(a.ctx, "assistantToolResult", map[string]any{"name": e.ToolName, "result": e.ToolResult})
+			case "rate":
+				if e.Rate != nil {
+					a.assistantMu.Lock()
+					a.assistantLimits = *e.Rate
+					a.assistantLimitsAt = time.Now()
+					a.assistantMu.Unlock()
+					runtime.EventsEmit(a.ctx, "assistantLimits", toAssistantLimits(*e.Rate))
+				}
 			}
 		}
 		err := assistant.Run(ctx, settings, key, &history, a.assistantTools(), emit)
@@ -193,9 +249,22 @@ func (a *App) SendAssistantMessage(text string) error {
 			message := err.Error()
 			if errors.Is(err, context.Canceled) {
 				message = "запрос отменён"
+			} else {
+				message = assistant.FriendlyError(err)
 			}
 			runtime.EventsEmit(a.ctx, "assistantDone", map[string]any{"ok": false, "error": message})
 			return
+		}
+		if settings.Provider == assistant.ProviderOpenRouter && key != "" {
+			limitCtx, limitCancel := context.WithTimeout(a.ctx, 15*time.Second)
+			if limits, err := assistant.FetchOpenRouterLimits(limitCtx, key); err == nil {
+				a.assistantMu.Lock()
+				a.assistantLimits = *limits
+				a.assistantLimitsAt = time.Now()
+				a.assistantMu.Unlock()
+				runtime.EventsEmit(a.ctx, "assistantLimits", toAssistantLimits(*limits))
+			}
+			limitCancel()
 		}
 		runtime.EventsEmit(a.ctx, "assistantDone", map[string]any{"ok": true})
 	}()
@@ -221,6 +290,9 @@ func (a *App) ClearAssistantHistory() {
 	a.assistantHistory = nil
 	a.assistantProposal = nil
 	a.assistantGeneration++
+	if a.assistantHistoryPath != "" {
+		_ = os.Remove(a.assistantHistoryPath)
+	}
 }
 
 func trimAssistantHistory(history []assistant.Message, max int) []assistant.Message {

@@ -731,3 +731,16 @@ func TestStoreLoadMigratesLegacyKeys(t *testing.T) {
 		t.Fatal("legacy standard preset should be dropped")
 	}
 }
+
+func TestTerms(t *testing.T) {
+	got := Terms("kills * 2 + assists * 3;\n min(healing, 8000) * 0.001")
+	want := []string{"kills * 2", "assists * 3", "min(healing, 8000) * 0.001"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v", got)
+		}
+	}
+}

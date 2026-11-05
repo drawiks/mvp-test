@@ -16,6 +16,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
+type PendingFormula = { name: string; description: string; expression: string; nonce: number };
+
 const NAV: { id: "home" | "formulas" | "variables" | "assistant"; label: string }[] = [
   { id: "home", label: "Главная" },
   { id: "formulas", label: "Формулы" },
@@ -35,6 +37,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
   const [page, setPage] = useState<"home" | "formulas" | "variables" | "assistant">("home");
+  const [pendingFormula, setPendingFormula] = useState<PendingFormula | null>(null);
   const [appVersion, setAppVersion] = useState("");
   const [update, setUpdate] = useState<main.UpdateInfo | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
@@ -261,11 +264,24 @@ export default function App() {
           <Loader2 className="mr-2 size-4 animate-spin" /> Загрузка…
         </div>
       ) : page === "formulas" ? (
-        <FormulasPage presets={presets} activeId={activeId} onChange={refreshPresets} />
+        <FormulasPage
+          presets={presets}
+          activeId={activeId}
+          onChange={refreshPresets}
+          pendingFormula={pendingFormula}
+          onPendingConsumed={() => setPendingFormula(null)}
+        />
       ) : page === "variables" ? (
         <VariablesPage views={views} />
       ) : page === "assistant" ? (
-        <AssistantPage onChange={refreshPresets} onOpenFormulas={() => setPage("formulas")} />
+        <AssistantPage
+          onChange={refreshPresets}
+          onOpenFormulas={() => setPage("formulas")}
+          onApplyToEditor={(p) => {
+            setPendingFormula({ ...p, nonce: Date.now() });
+            setPage("formulas");
+          }}
+        />
       ) : views && views.length > 0 ? (
         <HomePage views={views} presets={presets} activeId={activeId} matchInfo={matchInfo} onChange={refreshPresets} />
       ) : (

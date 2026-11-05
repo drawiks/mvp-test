@@ -38,15 +38,18 @@ type App struct {
 	updateRelease *updater.Release
 	updating      bool
 
-	assistantSettings   assistant.Settings
-	groqKey             string
-	openRouterKey       string
-	assistantMu         sync.Mutex
-	assistantHistory    []assistant.Message
-	assistantRunning    bool
-	assistantCancel     context.CancelFunc
-	assistantGeneration int
-	assistantProposal   *AssistantProposal
+	assistantSettings    assistant.Settings
+	groqKey              string
+	openRouterKey        string
+	assistantMu          sync.Mutex
+	assistantHistory     []assistant.Message
+	assistantRunning     bool
+	assistantCancel      context.CancelFunc
+	assistantGeneration  int
+	assistantProposal    *AssistantProposal
+	assistantLimits      assistant.RateLimit
+	assistantLimitsAt    time.Time
+	assistantHistoryPath string
 }
 
 type appConfig struct {
@@ -71,6 +74,7 @@ func (a *App) startup(ctx context.Context) {
 	dir := filepath.Join(cfgDir, "mvp")
 	_ = os.MkdirAll(dir, 0o755)
 	a.configPath = filepath.Join(dir, "config.json")
+	a.assistantHistoryPath = filepath.Join(dir, "assistant-history.json")
 	a.store = formula.NewStore(filepath.Join(dir, "formulas.json"))
 	a.varStore = formula.NewVariableStore(filepath.Join(dir, "variables.json"))
 	cfg := appConfig{
@@ -110,6 +114,7 @@ func (a *App) startup(ctx context.Context) {
 	if a.openRouterKey, err = assistant.DecryptSecret(cfg.OpenRouterEnc); err != nil {
 		runtime.LogError(ctx, "assistant openrouter key: "+err.Error())
 	}
+	a.loadAssistantHistory()
 }
 
 func (a *App) ParseReplay(path string) error {

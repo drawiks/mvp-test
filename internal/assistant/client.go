@@ -35,6 +35,7 @@ type chatRequest struct {
 
 type streamChunk struct {
 	Error *struct {
+		Code    int    `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
 	Choices []struct {
@@ -54,7 +55,7 @@ type streamChunk struct {
 	} `json:"choices"`
 }
 
-func streamChat(ctx context.Context, settings Settings, apiKey string, messages []Message, tools []Tool, emit func(Event)) (Message, error) {
+func streamChat(ctx context.Context, settings Settings, apiKey string, messages []Message, tools []Tool, emit func(Event)) (Message, *RateLimit, error) {
 	defs := make([]toolDefinition, 0, len(tools))
 	for _, t := range tools {
 		defs = append(defs, toolDefinition{
@@ -75,12 +76,12 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		Stream:      true,
 	})
 	if err != nil {
-		return Message{}, err
+		return Message{}, nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, BaseURL(settings.Provider)+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return Message{}, err
+		return Message{}, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
@@ -92,9 +93,13 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return Message{}, err
+		return Message{}, nil, err
 	}
 	defer resp.Body.Close()
+	rate := parseRate(resp.Header, settings.Provider)
+	if rate != nil && emit != nil {
+		emit(Event{Type: "rate", Rate: rate})
+	}
 	if resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		body := strings.TrimSpace(string(raw))
@@ -106,7 +111,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		if json.Unmarshal(raw, &parsed) == nil && parsed.Error.Message != "" {
 			body = parsed.Error.Message
 		}
-		return Message{}, &APIError{Status: resp.StatusCode, Body: body, RetryAfter: resp.Header.Get("Retry-After")}
+		return Message{}, rate, &APIError{Status: resp.StatusCode, Body: body, RetryAfter: resp.Header.Get("Retry-After"), Rate: rate}
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -128,7 +133,11 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 			continue
 		}
 		if chunk.Error != nil && chunk.Error.Message != "" {
-			return Message{}, &APIError{Status: http.StatusBadGateway, Body: chunk.Error.Message}
+			status := chunk.Error.Code
+			if status == 0 {
+				status = http.StatusBadGateway
+			}
+			return Message{}, rate, &APIError{Status: status, Body: chunk.Error.Message, Rate: rate}
 		}
 		for _, choice := range chunk.Choices {
 			if choice.Delta.Content != "" {
@@ -157,7 +166,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return Message{}, err
+		return Message{}, rate, err
 	}
 
 	indexes := make([]int, 0, len(calls))
@@ -177,7 +186,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		toolCalls = append(toolCalls, call)
 	}
 	if content.Len() == 0 && len(toolCalls) == 0 {
-		return Message{}, fmt.Errorf("ассистент вернул пустой ответ")
+		return Message{}, rate, fmt.Errorf("ассистент вернул пустой ответ")
 	}
-	return Message{Role: "assistant", Content: content.String(), ToolCalls: toolCalls}, nil
+	return Message{Role: "assistant", Content: content.String(), ToolCalls: toolCalls}, rate, nil
 }

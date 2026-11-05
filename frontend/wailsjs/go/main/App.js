@@ -62,8 +62,24 @@ export function ExportVariableDialog(arg1) {
   return window['go']['main']['App']['ExportVariableDialog'](arg1);
 }
 
+export function DiffFormula(arg1, arg2) {
+  return window['go']['main']['App']['DiffFormula'](arg1, arg2);
+}
+
+export function GetActiveFormulaExpression() {
+  return window['go']['main']['App']['GetActiveFormulaExpression']();
+}
+
 export function GetAppVersion() {
   return window['go']['main']['App']['GetAppVersion']();
+}
+
+export function GetAssistantHistory() {
+  return window['go']['main']['App']['GetAssistantHistory']();
+}
+
+export function GetAssistantLimits() {
+  return window['go']['main']['App']['GetAssistantLimits']();
 }
 
 export function GetAssistantSettings() {

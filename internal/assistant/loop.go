@@ -38,7 +38,7 @@ func Run(ctx context.Context, settings Settings, apiKey string, history *[]Messa
 		messages = append(messages, Message{Role: "system", Content: systemPrompt})
 		messages = append(messages, *history...)
 
-		answer, err := streamChat(ctx, settings, apiKey, messages, tools, emit)
+		answer, _, err := streamChat(ctx, settings, apiKey, messages, tools, emit)
 		if err != nil {
 			return err
 		}
@@ -99,6 +99,6 @@ func truncate(s string, n int) string {
 // Ping performs a minimal chat request to validate credentials and model access.
 func Ping(ctx context.Context, settings Settings, apiKey string) error {
 	history := []Message{{Role: "user", Content: "Ответь одним словом: ok"}}
-	_, err := streamChat(ctx, settings, apiKey, history, nil, nil)
+	_, _, err := streamChat(ctx, settings, apiKey, history, nil, nil)
 	return err
 }

@@ -131,6 +131,31 @@ func TestAssistantTools(t *testing.T) {
 	}
 }
 
+func TestDiffFormula(t *testing.T) {
+	a := &App{}
+	d := a.DiffFormula("kills * 2 + assists * 3", "kills * 2 + deaths * 1")
+	if len(d.Added) != 1 || d.Added[0] != "deaths * 1" || len(d.Removed) != 1 || d.Removed[0] != "assists * 3" {
+		t.Fatalf("diff %+v", d)
+	}
+}
+
+func TestAssistantHistoryRoundtrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "assistant-history.json")
+	a := &App{assistantHistoryPath: path}
+	a.assistantMu.Lock()
+	a.assistantHistory = []assistant.Message{{Role: "user", Content: "привет"}, {Role: "assistant", Content: "ответ"}}
+	a.assistantProposal = &AssistantProposal{Name: "P", Expression: "kills"}
+	a.saveAssistantHistoryLocked()
+	a.assistantMu.Unlock()
+
+	b := &App{assistantHistoryPath: path}
+	b.loadAssistantHistory()
+	h := b.GetAssistantHistory()
+	if len(h.Messages) != 2 || h.Messages[1].Text != "ответ" || h.Proposal == nil || h.Proposal.Expression != "kills" {
+		t.Fatalf("history %+v", h)
+	}
+}
+
 func TestUpdateMethodsWhenDev(t *testing.T) {
 	a := &App{}
 	if a.GetAppVersion() != version {

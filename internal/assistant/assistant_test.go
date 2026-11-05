@@ -110,3 +110,43 @@ func TestRunToolLoop(t *testing.T) {
 		t.Fatalf("delta missing: %+v", events)
 	}
 }
+
+func TestParseRate(t *testing.T) {
+	h := http.Header{}
+	h.Set("x-ratelimit-limit-requests", "1000")
+	h.Set("x-ratelimit-remaining-requests", "987")
+	h.Set("x-ratelimit-reset-requests", "2m")
+	h.Set("x-ratelimit-limit-tokens", "8000")
+	h.Set("x-ratelimit-remaining-tokens", "7000")
+	r := parseRate(h, ProviderGroq)
+	if r == nil || r.RequestsLimit != 1000 || r.RequestsRemaining != 987 || r.TokensLimit != 8000 {
+		t.Fatalf("rate %+v", r)
+	}
+}
+
+func TestFriendlyError429(t *testing.T) {
+	err := &APIError{Status: 429, Rate: &RateLimit{
+		Provider: ProviderGroq, RequestsLimit: 1000, RequestsRemaining: 0, RequestsReset: "1h",
+	}}
+	got := FriendlyError(err)
+	if !strings.Contains(got, "Groq") || !strings.Contains(got, "1h") {
+		t.Fatalf("message %q", got)
+	}
+}
+
+func TestFetchOpenRouterLimits(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"data":{"limit_remaining":9.5,"free_model_daily_requests":{"used":3,"limit":50,"remaining":47}}}`)
+	}))
+	defer srv.Close()
+	old := openRouterBaseURL
+	openRouterBaseURL = srv.URL
+	defer func() { openRouterBaseURL = old }()
+	r, err := FetchOpenRouterLimits(context.Background(), "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.FreeRequestsRemaining != 47 || r.FreeRequestsLimit != 50 || r.CreditsRemaining == nil || *r.CreditsRemaining != 9.5 {
+		t.Fatalf("rate %+v", r)
+	}
+}

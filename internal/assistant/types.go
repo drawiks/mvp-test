@@ -1,6 +1,9 @@
 package assistant
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 const (
 	ProviderGroq       = "groq"
@@ -35,6 +38,24 @@ type Model struct {
 	SupportsTools bool   `json:"supportsTools"`
 	Free          bool   `json:"free"`
 	Note          string `json:"note,omitempty"`
+	Privacy       string `json:"privacy,omitempty"`
+}
+
+// RateLimit is the latest provider quota information.
+type RateLimit struct {
+	Provider              string    `json:"provider"`
+	RequestsLimit         int       `json:"requestsLimit"`
+	RequestsRemaining     int       `json:"requestsRemaining"`
+	RequestsReset         string    `json:"requestsReset,omitempty"`
+	TokensLimit           int       `json:"tokensLimit"`
+	TokensRemaining       int       `json:"tokensRemaining"`
+	TokensReset           string    `json:"tokensReset,omitempty"`
+	FreeRequestsLimit     int       `json:"freeRequestsLimit"`
+	FreeRequestsRemaining int       `json:"freeRequestsRemaining"`
+	FreeRequestsReset     string    `json:"freeRequestsReset,omitempty"`
+	CreditsRemaining      *float64  `json:"creditsRemaining,omitempty"`
+	RetryAfter            string    `json:"retryAfter,omitempty"`
+	ReceivedAt            time.Time `json:"receivedAt"`
 }
 
 // Message is one OpenAI-compatible chat message.
@@ -81,6 +102,7 @@ type Event struct {
 	ToolArgs   string
 	ToolResult string
 	Proposal   *Proposal
+	Rate       *RateLimit
 	Err        error
 }
 
@@ -89,6 +111,7 @@ type APIError struct {
 	Status     int
 	Body       string
 	RetryAfter string
+	Rate       *RateLimit
 }
 
 func (e *APIError) Error() string {

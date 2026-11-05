@@ -180,6 +180,7 @@ func fetchOpenRouterModels(ctx context.Context) ([]Model, error) {
 		model := Model{
 			ID: m.ID, Name: m.Name, Provider: ProviderOpenRouter,
 			ContextLength: m.ContextLength, SupportsTools: true, Free: true,
+			Privacy: "free-маршруты OpenRouter могут использовать данные для обучения; имена маскируются",
 		}
 		if m.ID == "openrouter/free" {
 			model.Note = "авто-роутер: выбирает случайную бесплатную модель"

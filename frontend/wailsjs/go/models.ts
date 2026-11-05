@@ -55,6 +55,106 @@ export namespace formula {
 
 export namespace main {
 
+	export class AssistantChatMessage {
+	    role: string;
+	    text: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AssistantChatMessage(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.role = source["role"];
+	        this.text = source["text"];
+	    }
+	}
+	export class AssistantHistoryState {
+	    messages: AssistantChatMessage[];
+	    proposal?: AssistantProposal;
+
+	    static createFrom(source: any = {}) {
+	        return new AssistantHistoryState(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.messages = this.convertValues(source["messages"], AssistantChatMessage);
+	        this.proposal = this.convertValues(source["proposal"], AssistantProposal);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AssistantLimits {
+	    provider: string;
+	    requestsLimit: number;
+	    requestsRemaining: number;
+	    requestsReset: string;
+	    tokensLimit: number;
+	    tokensRemaining: number;
+	    tokensReset: string;
+	    freeRequestsLimit: number;
+	    freeRequestsRemaining: number;
+	    freeRequestsReset: string;
+	    creditsRemaining?: number;
+	    retryAfter: string;
+	    receivedAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AssistantLimits(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.requestsLimit = source["requestsLimit"];
+	        this.requestsRemaining = source["requestsRemaining"];
+	        this.requestsReset = source["requestsReset"];
+	        this.tokensLimit = source["tokensLimit"];
+	        this.tokensRemaining = source["tokensRemaining"];
+	        this.tokensReset = source["tokensReset"];
+	        this.freeRequestsLimit = source["freeRequestsLimit"];
+	        this.freeRequestsRemaining = source["freeRequestsRemaining"];
+	        this.freeRequestsReset = source["freeRequestsReset"];
+	        this.creditsRemaining = source["creditsRemaining"];
+	        this.retryAfter = source["retryAfter"];
+	        this.receivedAt = source["receivedAt"];
+	    }
+	}
+	export class FormulaDiff {
+	    current: string;
+	    proposed: string;
+	    added: string[];
+	    removed: string[];
+
+	    static createFrom(source: any = {}) {
+	        return new FormulaDiff(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.current = source["current"];
+	        this.proposed = source["proposed"];
+	        this.added = source["added"];
+	        this.removed = source["removed"];
+	    }
+	}
 	export class AssistantModel {
 	    id: string;
 	    name: string;
@@ -63,6 +163,7 @@ export namespace main {
 	    supportsTools: boolean;
 	    free: boolean;
 	    note: string;
+	    privacy: string;
 
 	    static createFrom(source: any = {}) {
 	        return new AssistantModel(source);
@@ -77,6 +178,7 @@ export namespace main {
 	        this.supportsTools = source["supportsTools"];
 	        this.free = source["free"];
 	        this.note = source["note"];
+	        this.privacy = source["privacy"];
 	    }
 	}
 	export class AssistantProposal {

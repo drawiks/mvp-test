@@ -613,6 +613,20 @@ func splitTerms(stmt string) []string {
 	return append(terms, strings.TrimSpace(stmt[start:]))
 }
 
+// Terms returns the top-level additive terms of an expression after comment
+// stripping and legacy-token migration. It is used for formula diffs.
+func Terms(expression string) []string {
+	out := []string{}
+	for _, raw := range splitStatements(stripComments(expression)) {
+		for _, term := range splitTerms(migrate(raw)) {
+			if t := strings.TrimSpace(term); t != "" {
+				out = append(out, t)
+			}
+		}
+	}
+	return out
+}
+
 // prevOperandEnd reports whether the last significant character before i
 // completes a value (digit, identifier character or closing bracket), i.e. the
 // operator at i is a binary one rather than a unary sign.

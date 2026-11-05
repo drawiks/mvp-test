@@ -33,7 +33,15 @@ export function ExportPresetDialog(arg1:string):Promise<boolean>;
 
 export function ExportVariableDialog(arg1:string):Promise<boolean>;
 
+export function DiffFormula(arg1:string,arg2:string):Promise<main.FormulaDiff>;
+
+export function GetActiveFormulaExpression():Promise<string>;
+
 export function GetAppVersion():Promise<string>;
+
+export function GetAssistantHistory():Promise<main.AssistantHistoryState>;
+
+export function GetAssistantLimits():Promise<main.AssistantLimits>;
 
 export function GetAssistantSettings():Promise<main.AssistantSettings>;
 
