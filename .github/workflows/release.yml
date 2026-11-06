@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   windows:
-    runs-on: ubuntu-24.04
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,30 +25,19 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
-      - name: Install mingw-w64
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          if ! command -v x86_64-w64-mingw32-gcc >/dev/null; then
-            sudo timeout 180 apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 || {
-              sudo timeout 180 apt-get update \
-                -o Acquire::Retries=3 \
-                -o Acquire::http::Timeout=30 \
-                -o Acquire::https::Timeout=30
-              sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64
-            }
-          fi
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
       - name: Build Windows exe
+        shell: pwsh
         env:
           TAG: ${{ github.ref_name }}
         run: |
-          VERSION="${TAG#v}"
-          wails build -platform windows/amd64 -clean -o mvp.exe -ldflags "-X main.version=${VERSION}"
-          cp build/bin/mvp.exe mvp-windows-amd64.exe
-          sha256sum mvp-windows-amd64.exe > checksums.txt
+          $version = $env:TAG.TrimStart("v")
+          wails build -platform windows/amd64 -clean -o mvp.exe -ldflags "-X main.version=$version"
+          Copy-Item build/bin/mvp.exe mvp-windows-amd64.exe
+          (Get-FileHash mvp-windows-amd64.exe -Algorithm SHA256).Hash.ToLower() + "  mvp-windows-amd64.exe" | Out-File -Encoding ascii checksums.txt
       - name: Publish release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" mvp-windows-amd64.exe checksums.txt --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "${{ github.ref_name }}" mvp-windows-amd64.exe checksums.txt --title "${{ github.ref_name }}" --generate-notes
