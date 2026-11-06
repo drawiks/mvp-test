@@ -26,19 +26,6 @@ export const fmtNum = (v: number): string => {
 
 import type { WeightMeta } from "./weights";
 
-/** Build a human-readable formula preview line: "Счёт = 0.3·Убийства − 0.1·Смерти …" */
-export const buildFormulaPreview = (weights: Record<string, number>, meta: WeightMeta[]): string => {
-  const parts: string[] = [];
-  for (const m of meta) {
-    const w = weights[m.key];
-    if (!w) continue;
-    const sign = w > 0 ? (parts.length === 0 ? "" : " + ") : " − ";
-    const abs = Math.abs(w);
-    parts.push(`${sign}${abs !== 1 ? `${abs}` : ""}${m.label}`);
-  }
-  return parts.length === 0 ? "Счёт = 0" : `Счёт = ${parts.join("")}`;
-};
-
 /**
  * Per-stat contribution tooltip: "Урон героям: 12500 × 0.1 = 1250.0"
  */
