@@ -75,7 +75,7 @@ func (s *Store) load() {
 		return
 	}
 	for _, p := range file.Presets {
-		if p.ID == "standard" {
+		if p.ID == "standard" || isBuiltin(p.ID) {
 			continue
 		}
 		s.add(migratePreset(p.preset()))

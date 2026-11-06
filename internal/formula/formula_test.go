@@ -121,6 +121,24 @@ func TestStoreBuiltinsNeverOverwritten(t *testing.T) {
 	}
 }
 
+func TestStoreLoadIgnoresSavedBuiltins(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "f.json")
+	stale := `{"active":"standard_v2","presets":[
+		{"id":"standard_v2","name":"Old Standard","kind":"expression","expression":"kills"},
+		{"id":"tutorial","name":"Old Tutorial","kind":"expression","expression":"assists"}
+	]}`
+	if err := os.WriteFile(path, []byte(stale), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := NewStore(path)
+	if got := s.presets["standard_v2"].Expression; got != StandardV2Formula {
+		t.Fatalf("standard_v2 loaded from file: %q", got)
+	}
+	if got := s.presets["tutorial"].Expression; got != TutorialFormula {
+		t.Fatalf("tutorial loaded from file: %q", got)
+	}
+}
+
 func TestValidatePresetAllowsLocalLet(t *testing.T) {
 	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
 	expr := "let impact = kills * 2; impact + assists"
