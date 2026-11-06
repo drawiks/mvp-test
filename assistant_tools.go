@@ -80,10 +80,10 @@ type assistantStatLeader struct {
 }
 
 type assistantTokenInfo struct {
-	Token string `json:"token"`
-	Label string `json:"label"`
-	Unit  string `json:"unit,omitempty"`
-	Note  string `json:"note,omitempty"`
+	Token       string `json:"token"`
+	Label       string `json:"label"`
+	Unit        string `json:"unit,omitempty"`
+	Description string `json:"description"`
 }
 
 func (a *App) assistantTools() []assistant.Tool {
@@ -128,7 +128,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "get_token_catalog",
-			Description: "Базовые токены формулы с единицами и пояснениями. Вызывай перед созданием или проверкой формулы.",
+			Description: "Подробное описание каждого токена: единицы и точный смысл. Обязателен перед созданием, критикой или существенным изменением формулы; не угадывай смысл по названию.",
 			Parameters:  objectSchema(nil),
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				return assistantTokenCatalog(), nil
@@ -491,7 +491,7 @@ func assistantTokenCatalog() []assistantTokenInfo {
 	for _, stat := range formula.Stats {
 		out = append(out, assistantTokenInfo{
 			Token: stat.Token, Label: stat.Label,
-			Unit: tokenUnits[stat.Token], Note: tokenNotes[stat.Token],
+			Unit: tokenUnits[stat.Token], Description: tokenDescriptions[stat.Token],
 		})
 	}
 	return out
@@ -514,16 +514,6 @@ var tokenUnits = map[string]string{
 	"creeps_stacked": "count", "wisdoms_captured": "count", "watchers_captured": "count",
 	"lotuses_gathered": "count", "courier_kills": "count", "match_duration": "seconds",
 	"position": "1-5",
-}
-
-var tokenNotes = map[string]string{
-	"position":       "1=carry, 2=mid, 3=offlane, 4/5=support",
-	"gpm":            "gold per minute",
-	"xpm":            "experience per minute",
-	"match_duration": "seconds",
-	"mana_restored":  "use only for manta-parsed replays",
-	"first_blood":    "1 if first blood, else 0",
-	"time_dead":      "seconds",
 }
 
 func (a *App) assistantResult() (*model.Result, error) {

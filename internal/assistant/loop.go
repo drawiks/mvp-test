@@ -10,7 +10,7 @@ import (
 
 const (
 	maxToolCallsPerRound = 6
-	maxToolResultChars   = 4000
+	maxToolResultChars   = 16000
 )
 
 type KeyRotator interface {

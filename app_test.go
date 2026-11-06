@@ -354,23 +354,34 @@ func TestAssistantDiffFormulas(t *testing.T) {
 	}
 }
 
-func TestAssistantTokenCatalogUnits(t *testing.T) {
+func TestAssistantTokenCatalogMetadata(t *testing.T) {
 	catalog := assistantTokenCatalog()
 	byToken := map[string]assistantTokenInfo{}
 	for _, token := range catalog {
 		byToken[token.Token] = token
+		if token.Description == "" {
+			t.Errorf("%s description missing", token.Token)
+		}
 	}
 	if byToken["stun_duration"].Unit != "seconds" {
 		t.Fatalf("stun unit = %q", byToken["stun_duration"].Unit)
 	}
-	if byToken["position"].Note == "" {
-		t.Fatal("position note missing")
+	for token, want := range map[string]string{
+		"time_dead":           "таверн",
+		"heal_duration":       "союзник",
+		"buff_stats_duration": "союзник",
+		"purge_count":         "развеиван",
+		"buff_duration":       "всех баффов",
+	} {
+		if !strings.Contains(strings.ToLower(byToken[token].Description), want) {
+			t.Errorf("%s description %q does not contain %q", token, byToken[token].Description, want)
+		}
 	}
 	data, err := json.Marshal(catalog)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(data) > 4000 {
+	if len(data) > 16000 {
 		t.Fatalf("catalog too large: %d bytes", len(data))
 	}
 }
@@ -430,8 +441,7 @@ func TestAssistantToolResultsFitLimit(t *testing.T) {
 	}
 	outputs := map[string]any{
 		"match": match, "preview": preview, "leaders": leaders, "player": player,
-		"compare": compare, "tokens": assistantTokenCatalog(),
-		"formulas": a.store.Presets(),
+		"compare": compare, "formulas": a.store.Presets(),
 	}
 	for name, output := range outputs {
 		data, err := json.Marshal(output)
@@ -441,6 +451,13 @@ func TestAssistantToolResultsFitLimit(t *testing.T) {
 		if len(data) > 4000 {
 			t.Errorf("%s result too large: %d bytes", name, len(data))
 		}
+	}
+	tokens, err := json.Marshal(assistantTokenCatalog())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tokens) > 16000 {
+		t.Errorf("tokens result too large: %d bytes", len(tokens))
 	}
 }
 
