@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   windows:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,7 +26,18 @@ jobs:
       - run: npm run build
         working-directory: frontend
       - name: Install mingw-w64
-        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          if ! command -v x86_64-w64-mingw32-gcc >/dev/null; then
+            sudo timeout 180 apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 || {
+              sudo timeout 180 apt-get update \
+                -o Acquire::Retries=3 \
+                -o Acquire::http::Timeout=30 \
+                -o Acquire::https::Timeout=30
+              sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64
+            }
+          fi
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.15.0
       - name: Build Windows exe
