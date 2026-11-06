@@ -25,12 +25,12 @@ func fixture(t *testing.T) *App {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &App{result: &result, store: formula.NewStore(""), varStore: formula.NewVariableStore("")}
+	return &App{result: &result, store: formula.NewStore("")}
 }
 
 func TestBuildViewsStandard(t *testing.T) {
 	a := fixture(t)
-	views, err := BuildViews(*a.result, a.store.Active(), nil)
+	views, err := BuildViews(*a.result, a.store.Active())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestBuildViewsTopScores(t *testing.T) {
 	views, err := BuildViews(*a.result, formula.Preset{
 		ID: "test", Name: "test", Kind: "linear",
 		Weights: mvp.WeightsToMapping(mvp.DefaultWeights),
-	}, nil)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,10 +375,9 @@ func TestAssistantTokenCatalogUnits(t *testing.T) {
 	}
 }
 
-func TestAssistantExplainWithVariable(t *testing.T) {
+func TestAssistantExplainWithLocalLet(t *testing.T) {
 	a := fixture(t)
-	a.varStore.Add(formula.Variable{Name: "impact", Expression: "kills * 2 + assists"})
-	_, err := a.toolExplain("impact + deaths", 0)
+	_, err := a.toolExplain("let impact = kills * 2 + assists; impact + deaths", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,8 +385,8 @@ func TestAssistantExplainWithVariable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := player.Variables["impact"]; !ok {
-		t.Fatalf("resolved variables missing: %+v", player.Variables)
+	if player.Stats["kills"] == 0 {
+		t.Fatalf("stats missing: %+v", player.Stats)
 	}
 }
 
@@ -432,7 +431,7 @@ func TestAssistantToolResultsFitLimit(t *testing.T) {
 	outputs := map[string]any{
 		"match": match, "preview": preview, "leaders": leaders, "player": player,
 		"compare": compare, "tokens": assistantTokenCatalog(),
-		"formulas": a.store.Presets(), "variables": a.varStore.Variables(),
+		"formulas": a.store.Presets(),
 	}
 	for name, output := range outputs {
 		data, err := json.Marshal(output)
@@ -542,48 +541,14 @@ func TestSetParserEngine(t *testing.T) {
 	}
 }
 
-func TestEvalVariableAgainstLoadedPlayer(t *testing.T) {
+func TestUpsertPresetAllowsLocalLet(t *testing.T) {
 	a := fixture(t)
-	// Use a stored disabled variable store; find first player's base stats.
-	p := a.result.Players[0]
-	v, err := a.EvalVariable("dead_ratio", "time_dead / max(deaths, 1)", mvp.PlayerVars(p, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v < 0 {
-		t.Fatalf("negative ratio %v", v)
-	}
-}
-
-func TestEvalVariableRejectsUnknownToken(t *testing.T) {
-	a := fixture(t)
-	_, err := a.EvalVariable("x", "time_dead / nonsense", nil)
-	if err == nil {
-		t.Fatal("want error for unknown token")
-	}
-}
-
-func TestTestPlayerStatsNonEmpty(t *testing.T) {
-	a := NewApp()
-	s := a.TestPlayerStats()
-	if s["kills"] != 10 || s["deaths"] != 4 || s["time_dead"] != 480 {
-		t.Fatalf("unexpected test stats: %+v", s)
-	}
-	if s["position"] != 2 {
-		t.Fatalf("position %v, want 2", s["position"])
-	}
-}
-
-func TestUpsertPresetAllowsUserVariables(t *testing.T) {
-	a := fixture(t)
-	// Register a user variable that the preset's expression will reference.
-	a.varStore.Add(formula.Variable{Name: "Initiation_Density", Expression: "kills * 2"})
-	preset := formula.Preset{ID: "p", Name: "P", Kind: "expression", Expression: "kills * 2 + Initiation_Density"}
+	preset := formula.Preset{ID: "p", Name: "P", Kind: "expression", Expression: "let impact = kills * 2; impact + assists"}
 	if err := a.UpsertPreset(preset); err != nil {
-		t.Fatalf("upsert with user variable failed: %v", err)
+		t.Fatalf("upsert with local let failed: %v", err)
 	}
 	got, ok := a.store.Get("p")
-	if !ok || got.Expression != "kills * 2 + Initiation_Density" {
+	if !ok || got.Expression != preset.Expression {
 		t.Fatalf("preset not persisted: %+v ok=%v", got, ok)
 	}
 }
@@ -599,23 +564,20 @@ func TestUpsertPresetRejectsUnknownToken(t *testing.T) {
 func TestEvalBreakdown(t *testing.T) {
 	a := fixture(t)
 	p := a.result.Players[0]
-	rows, err := a.EvalBreakdown("kills * 2;\n assists * 3", p.PlayerID)
+	expr := "let core = kills * 2;\nlet extra = assists * 3;\ncore + extra"
+	rows, err := a.EvalBreakdown(expr, p.PlayerID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 2 {
-		t.Fatalf("rows %d", len(rows))
+	if len(rows) != 1 || rows[0].Label != "Итого" {
+		t.Fatalf("rows %+v", rows)
 	}
-	var sum float64
-	for _, r := range rows {
-		sum += r.Value
-	}
-	total, err := a.EvalVariable("total", "kills * 2 + assists * 3", mvp.PlayerVars(p, 0))
+	total, err := formula.Eval(expr, mvp.PlayerVars(p, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if math.Abs(sum-total) > 1e-9 {
-		t.Fatalf("sum %v != total %v", sum, total)
+	if math.Abs(rows[0].Value-total) > 1e-9 {
+		t.Fatalf("row %v != total %v", rows[0].Value, total)
 	}
 	if got, err := a.EvalBreakdown("kills * 2", 999999); err == nil || got != nil {
 		t.Fatal("unknown steamID should error")

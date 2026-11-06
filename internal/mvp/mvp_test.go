@@ -71,7 +71,7 @@ func TestDefaultWeightsMatchGolden(t *testing.T) {
 
 func TestSelectMvpsRoles(t *testing.T) {
 	r := fixtureResult(t)
-	mvps, err := SelectMvps(r, testLinear, nil)
+	mvps, err := SelectMvps(r, testLinear)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestSelectMvpsRoles(t *testing.T) {
 
 func TestRankedPlayersSorted(t *testing.T) {
 	r := fixtureResult(t)
-	ranked, err := RankedPlayers(r, testLinear, nil)
+	ranked, err := RankedPlayers(r, testLinear)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestRankedPlayersSorted(t *testing.T) {
 func TestCustomWeightsOnlyFirstBlood(t *testing.T) {
 	r := fixtureResult(t)
 	w := linearPreset("fb", Weights{FirstBlood: 10.0})
-	mvps, err := SelectMvps(r, w, nil)
+	mvps, err := SelectMvps(r, w)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestCustomWeightsOnlyFirstBlood(t *testing.T) {
 func TestCustomWeightsChangeRanking(t *testing.T) {
 	r := fixtureResult(t)
 	w := linearPreset("k", Weights{Kills: 1.0})
-	ranked, err := RankedPlayers(r, w, nil)
+	ranked, err := RankedPlayers(r, w)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestExpressionPresetSelectMvps(t *testing.T) {
 		ID: "expr", Name: "Expr", Kind: "expression",
 		Expression: "(kills * 3 + assists * 1.5) / max(deaths, 1)",
 	}
-	mvps, err := SelectMvps(r, preset, nil)
+	mvps, err := SelectMvps(r, preset)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestStandardV2OnFixture(t *testing.T) {
 			t.Fatalf("%s: got %v want %v", name, got, want)
 		}
 	}
-	mvps, err := SelectMvps(r, formula.StandardV2Preset(), nil)
+	mvps, err := SelectMvps(r, formula.StandardV2Preset())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,37 +308,6 @@ func TestFixtureSortedBySlotStable(t *testing.T) {
 	}
 }
 
-func TestComputeScoreVars(t *testing.T) {
-	p := model.Player{TimeDead: 480, Deaths: 6}
-	preset := formula.Preset{ID: "e", Name: "E", Kind: "expression", Expression: "my_var * 2"}
-	vars := []formula.Variable{
-		{ID: "a", Name: "my_var", Expression: "time_dead / max(deaths, 1)"},
-	}
-	got, err := ComputeScoreVars(p, 0, preset, vars)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if math.Abs(got-160) > 1e-9 {
-		t.Fatalf("got %v want 160", got)
-	}
-}
-
-func TestComputeScoreVarsDependencies(t *testing.T) {
-	p := model.Player{TimeDead: 600, Deaths: 5}
-	preset := formula.Preset{ID: "e", Name: "E", Kind: "expression", Expression: "b"}
-	vars := []formula.Variable{
-		{ID: "1", Name: "a", Expression: "time_dead / max(deaths, 1)"},
-		{ID: "2", Name: "b", Expression: "a * 3"},
-	}
-	got, err := ComputeScoreVars(p, 0, preset, vars)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if math.Abs(got-360) > 1e-9 {
-		t.Fatalf("got %v want 360", got)
-	}
-}
-
 func TestPlayerVarsNewTokens(t *testing.T) {
 	p := model.Player{WisdomsCaptured: 3, WatchersCaptured: 2, LotusesGathered: 5, CourierKills: 1}
 	vars := PlayerVars(p, 3615.8)
@@ -359,7 +328,7 @@ func TestPlayerVarsNewTokens(t *testing.T) {
 func TestComputeScoreWithMatchDuration(t *testing.T) {
 	p := model.Player{Kills: 2}
 	preset := formula.Preset{ID: "e", Name: "E", Kind: "expression", Expression: "match_duration * kills"}
-	got, err := ComputeScoreVars(p, 3615.8, preset, nil)
+	got, err := ComputeScoreAt(p, 3615.8, preset)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +347,7 @@ func TestPlayerVarsPosition(t *testing.T) {
 func TestComputeScoreWithPositionIf(t *testing.T) {
 	p := model.Player{Kills: 10, Position: 1}
 	preset := formula.Preset{ID: "e", Name: "E", Kind: "expression", Expression: "if position == 1 { kills * 2 } else { kills }"}
-	got, err := ComputeScoreVars(p, 0, preset, nil)
+	got, err := ComputeScoreAt(p, 0, preset)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +355,7 @@ func TestComputeScoreWithPositionIf(t *testing.T) {
 		t.Fatalf("got %v want 20", got)
 	}
 	p.Position = 4
-	got, err = ComputeScoreVars(p, 0, preset, nil)
+	got, err = ComputeScoreAt(p, 0, preset)
 	if err != nil {
 		t.Fatal(err)
 	}

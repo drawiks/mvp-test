@@ -121,18 +121,14 @@ func TestStoreBuiltinsNeverOverwritten(t *testing.T) {
 	}
 }
 
-func TestValidatePresetAllowsUserVariables(t *testing.T) {
+func TestValidatePresetAllowsLocalLet(t *testing.T) {
 	s := NewStore(filepath.Join(t.TempDir(), "f.json"))
-	expr := "kills * 2 + Initiation_Density"
-
-	// Without extra, an unknown identifier is rejected.
-	if err := s.ValidatePreset(Preset{Name: "X", Kind: "expression", Expression: expr}, nil); err == nil {
-		t.Fatal("want error without user-variable allowed set")
-	}
-
-	// With the variable name allowed, the same expression validates.
-	if err := s.ValidatePreset(Preset{Name: "X", Kind: "expression", Expression: expr}, map[string]bool{"Initiation_Density": true}); err != nil {
+	expr := "let impact = kills * 2; impact + assists"
+	if err := s.ValidatePreset(Preset{Name: "X", Kind: "expression", Expression: expr}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := s.ValidatePreset(Preset{Name: "X", Kind: "expression", Expression: "kills + unknown_x"}); err == nil {
+		t.Fatal("unknown identifier must be rejected")
 	}
 }
 
@@ -212,6 +208,25 @@ func TestStoreHasStandardV2Builtin(t *testing.T) {
 	}
 	if s.Active().ID != "standard_v2" {
 		t.Fatal("active must default to standard_v2")
+	}
+}
+
+func TestTutorialPreset(t *testing.T) {
+	s := NewStore("")
+	found := false
+	for _, p := range s.Presets() {
+		if p.ID == "tutorial" {
+			found = true
+			if !isBuiltin(p.ID) || p.Kind != "expression" {
+				t.Fatalf("tutorial preset wrong flags: %+v", p)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("tutorial preset missing from store")
+	}
+	if s.Remove("tutorial") {
+		t.Fatal("built-in tutorial preset was removed")
 	}
 }
 
@@ -324,33 +339,13 @@ func TestExpressionToWeightsDuplicateConstant(t *testing.T) {
 	}
 }
 
-func TestSplitExpressionV2(t *testing.T) {
+func TestSplitExpressionLocalLet(t *testing.T) {
 	weights, tail := SplitExpression(StandardV2Formula)
-	for k, want := range map[string]float64{"kills": 0.2, "deaths": 0.2, "first_blood": 1.0} {
-		if weights[k] != want {
-			t.Fatalf("%s %v != %v", k, weights[k], want)
-		}
+	if len(weights) != 0 {
+		t.Fatalf("let formula must not produce weights: %v", weights)
 	}
-	for _, want := range []string{"min(healing, 8000)", "max(deaths, 1)", "min(buff_duration, 600)", "min(save_duration + purge_count + shield_duration, 500)"} {
-		if !strings.Contains(tail, want) {
-			t.Fatalf("%s missing in %s", want, tail)
-		}
-	}
-}
-
-func TestSplitExpressionRoundtripV2(t *testing.T) {
-	weights, tail := SplitExpression(StandardV2Formula)
-	rebuilt := LinearToExpression(weights)
-	if tail != "" {
-		rebuilt += " + " + tail
-	}
-	if err := Validate(rebuilt, statTokens); err != nil {
-		t.Fatal(err)
-	}
-	a := EvalOn(t, StandardV2Formula, sampleVars(t))
-	b := EvalOn(t, rebuilt, sampleVars(t))
-	if !approx(a, b, 1e-9) {
-		t.Fatalf("%v != %v", a, b)
+	if tail != strings.TrimSpace(StandardV2Formula) {
+		t.Fatalf("tail must keep full formula")
 	}
 }
 
@@ -361,6 +356,7 @@ func sampleVars(t *testing.T) map[string]float64 {
 		"stun_duration": 45, "camps_stacked": 9, "rune_pickups": 5, "first_blood": 1,
 		"gold_spent_wards": 500, "gold_spent_smoke": 100, "gold_spent_dust": 50,
 		"buff_duration": 700, "save_duration": 300, "purge_count": 120, "shield_duration": 40,
+		"wisdoms_captured": 3, "watchers_captured": 2, "lotuses_gathered": 5,
 		"position": 1,
 	}
 }
@@ -444,7 +440,7 @@ func TestEvalIfElse(t *testing.T) {
 
 func TestEvalIfElifChain(t *testing.T) {
 	vars := map[string]float64{"position": 0, "kills": 10, "assists": 5}
-	expr := "if position == 1 { kills } else if position == 2 { assists } else if position == 3 { kills + assists } else { 0 }"
+	expr := "if position == 1 { kills } elif position == 2 { assists } elif position == 3 { kills + assists } else { 0 }"
 	if got := EvalOn(t, expr, vars); got != 0 {
 		t.Fatalf("got %v", got)
 	}
@@ -455,6 +451,59 @@ func TestEvalIfElifChain(t *testing.T) {
 	vars["position"] = 3
 	if got := EvalOn(t, expr, vars); got != 15 {
 		t.Fatalf("got %v", got)
+	}
+}
+
+func TestEvalLet(t *testing.T) {
+	vars := map[string]float64{"kills": 10, "assists": 5, "deaths": 4}
+	expr := "let core = kills * 2;\nlet extra = assists * 3;\ncore + extra"
+	if got := EvalOn(t, expr, vars); !approx(got, 35, 1e-9) {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestEvalLetInIf(t *testing.T) {
+	vars := map[string]float64{"position": 1, "kills": 10}
+	expr := "if position == 1 { let bonus = kills * 2; bonus } else { kills }"
+	if got := EvalOn(t, expr, vars); got != 20 {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestEvalElifAlias(t *testing.T) {
+	vars := map[string]float64{"position": 2, "kills": 10, "assists": 5}
+	expr := "if position == 1 { kills } elif position == 2 { assists } else { 0 }"
+	if got := EvalOn(t, expr, vars); got != 5 {
+		t.Fatalf("got %v", got)
+	}
+}
+
+func TestLetScopeAndReservedNames(t *testing.T) {
+	if err := Validate("let x = kills; x + assists", statTokens); err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate("let x = kills; y", statTokens); err == nil {
+		t.Fatal("out-of-scope local variable must fail")
+	}
+	for _, expr := range []string{
+		"let kills = 1; kills",
+		"let save = 1; save",
+		"let max = 1; max",
+	} {
+		if err := Validate(expr, statTokens); err == nil {
+			t.Fatalf("reserved local name validated: %s", expr)
+		}
+	}
+}
+
+func TestLetNotLinear(t *testing.T) {
+	expr := "let core = kills * 2; core + assists"
+	if _, ok := ExpressionToWeights(expr); ok {
+		t.Fatal("let formula must not convert to weights")
+	}
+	weights, tail := SplitExpression(expr)
+	if len(weights) != 0 || tail != expr {
+		t.Fatalf("weights %v tail %q", weights, tail)
 	}
 }
 
@@ -557,8 +606,8 @@ func TestTutorialFormulaValid(t *testing.T) {
 	}
 }
 
-func TestMultilineSemicolonSums(t *testing.T) {
-	expr := "kills * 2;\nmax(deaths, 1) + assists * 3"
+func TestLetStatements(t *testing.T) {
+	expr := "let core = kills * 2;\nlet extra = max(deaths, 1) + assists * 3;\ncore + extra"
 	a := EvalOn(t, expr, map[string]float64{"kills": 5, "deaths": 4, "assists": 2})
 	want := 5*2 + 4 + 2*3
 	if !approx(a, float64(want), 1e-9) {
@@ -594,23 +643,19 @@ func TestMigrateExpressionNeutralizesRemoved(t *testing.T) {
 	}
 }
 
-func TestBreakdownSumsToTotal(t *testing.T) {
-	expr := "kills * 2;\n assists * 3"
+func TestBreakdownLetOneRow(t *testing.T) {
+	expr := "let core = kills * 2;\nlet extra = assists * 3;\ncore + extra"
 	vars := map[string]float64{"kills": 5, "assists": 2}
 	rows, err := Breakdown(expr, vars)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 2 {
-		t.Fatalf("rows %d", len(rows))
-	}
-	var sum float64
-	for _, r := range rows {
-		sum += r.Value
+	if len(rows) != 1 || rows[0].Label != "Итого" {
+		t.Fatalf("rows %+v", rows)
 	}
 	total, _ := Eval(expr, vars)
-	if !approx(sum, total, 1e-9) {
-		t.Fatalf("sum %v != total %v", sum, total)
+	if !approx(rows[0].Value, total, 1e-9) {
+		t.Fatalf("row %v != total %v", rows[0].Value, total)
 	}
 }
 
@@ -692,15 +737,11 @@ func TestBreakdownTutorialFormula(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) < 10 {
-		t.Fatalf("tutorial must decompose into summands, got %d rows", len(rows))
+	if len(rows) != 1 || rows[0].Label != "Итого" {
+		t.Fatalf("tutorial must be one total row, got %+v", rows)
 	}
-	var sum float64
-	for _, r := range rows {
-		sum += r.Value
-	}
-	if !approx(sum, total, 1e-6) {
-		t.Fatalf("sum %v != total %v", sum, total)
+	if !approx(rows[0].Value, total, 1e-6) {
+		t.Fatalf("row %v != total %v", rows[0].Value, total)
 	}
 }
 
@@ -754,7 +795,7 @@ func TestStoreLoadMigratesLegacyKeys(t *testing.T) {
 }
 
 func TestTerms(t *testing.T) {
-	got := Terms("kills * 2 + assists * 3;\n min(healing, 8000) * 0.001")
+	got := Terms("kills * 2 + assists * 3 + min(healing, 8000) * 0.001")
 	want := []string{"kills * 2", "assists * 3", "min(healing, 8000) * 0.001"}
 	if len(got) != len(want) {
 		t.Fatalf("got %v", got)
@@ -763,5 +804,11 @@ func TestTerms(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("got %v", got)
 		}
+	}
+}
+
+func TestTermsSkipsStatements(t *testing.T) {
+	if got := Terms("let x = kills * 2; x + assists"); got != nil {
+		t.Fatalf("statement formula must have no terms: %v", got)
 	}
 }

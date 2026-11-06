@@ -25,13 +25,9 @@ export function EvalBreakdown(arg1:string,arg2:number):Promise<Array<formula.Bre
 
 export function EvalPreview(arg1:string):Promise<Array<main.PlayerView>>;
 
-export function EvalVariable(arg1:string,arg2:string,arg3:Record<string, number>):Promise<number>;
-
 export function ExportPreset(arg1:string,arg2:string):Promise<void>;
 
 export function ExportPresetDialog(arg1:string):Promise<boolean>;
-
-export function ExportVariableDialog(arg1:string):Promise<boolean>;
 
 export function DiffFormula(arg1:string,arg2:string):Promise<main.FormulaDiff>;
 
@@ -55,15 +51,11 @@ export function ImportPreset(arg1:string):Promise<formula.Preset>;
 
 export function ImportPresetDialog():Promise<formula.Preset|boolean>;
 
-export function ImportVariableDialog():Promise<formula.Variable|boolean>;
-
 export function InstallUpdate():Promise<void>;
 
 export function ListAssistantModels(arg1:boolean):Promise<Array<main.AssistantModel>>;
 
 export function ListPresets():Promise<Array<formula.Preset>>;
-
-export function ListVariables():Promise<Array<formula.Variable>>;
 
 export function ParseReplay(arg1:string):Promise<void>;
 
@@ -72,8 +64,6 @@ export function Recompute():Promise<void>;
 export function RemovePreset(arg1:string):Promise<boolean>;
 
 export function RejectAssistantAction(arg1:string):Promise<void>;
-
-export function RemoveVariable(arg1:string):Promise<void>;
 
 export function SaveAssistantSettings(arg1:main.AssistantSettings):Promise<void>;
 
@@ -93,10 +83,6 @@ export function TestAssistantConnection():Promise<void>;
 
 export function TestGoogleKeys():Promise<void>;
 
-export function TestPlayerStats():Promise<Record<string, number>>;
-
 export function UpsertPreset(arg1:formula.Preset):Promise<void>;
-
-export function UpsertVariable(arg1:formula.Variable):Promise<void>;
 
 export function ValidateExpression(arg1:string):Promise<void>;

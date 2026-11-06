@@ -15,7 +15,7 @@ func (a *App) stageAssistantFormulaChange(args map[string]any) (any, error) {
 	if expression == "" {
 		return nil, errors.New("пустое выражение")
 	}
-	allowed := a.varStore.AllowedNames()
+	allowed := formula.BaseTokens()
 	if err := formula.Validate(expression, allowed); err != nil {
 		result := map[string]any{"status": "invalid", "error": err.Error()}
 		if hint := formulaValidationHint(err); hint != "" {
@@ -86,7 +86,7 @@ func (a *App) stageAssistantFormulaChange(args map[string]any) (any, error) {
 		ID: presetIDFinal, Name: name, Kind: "expression",
 		Expression: expression, Weights: map[string]float64{},
 	}
-	if err := a.store.ValidatePreset(preset, allowed); err != nil {
+	if err := a.store.ValidatePreset(preset); err != nil {
 		return nil, err
 	}
 
@@ -142,7 +142,7 @@ func (a *App) ApproveAssistantAction(id string) error {
 		ID: action.PresetID, Name: action.Name, Kind: "expression",
 		Expression: action.Expression, Weights: map[string]float64{},
 	}
-	if err := a.store.ValidatePreset(preset, a.varStore.AllowedNames()); err != nil {
+	if err := a.store.ValidatePreset(preset); err != nil {
 		return err
 	}
 	if a.store.NameTaken(preset.Name, preset.ID) {

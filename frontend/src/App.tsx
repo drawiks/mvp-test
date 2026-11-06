@@ -6,7 +6,6 @@ import { onEvent, offEvent } from "@/lib/wails";
 import type { MatchInfo } from "@/components/InfoBar";
 import HomePage from "@/pages/HomePage";
 import FormulasPage from "@/pages/FormulasPage";
-import VariablesPage from "@/pages/VariablesPage";
 import AssistantPage from "@/pages/AssistantPage";
 import SettingsPage from "@/pages/SettingsPage";
 import { Button } from "@/components/ui/button";
@@ -17,10 +16,9 @@ import { cn } from "@/lib/utils";
 
 type PendingFormula = { name: string; description: string; expression: string; nonce: number };
 
-const NAV: { id: "home" | "formulas" | "variables" | "assistant" | "settings"; label: string }[] = [
+const NAV: { id: "home" | "formulas" | "assistant" | "settings"; label: string }[] = [
   { id: "home", label: "Главная" },
   { id: "formulas", label: "Формулы" },
-  { id: "variables", label: "Переменные" },
   { id: "assistant", label: "Ассистент" },
   { id: "settings", label: "Настройки" },
 ];
@@ -34,7 +32,7 @@ export default function App() {
   const [showUpdates, setShowUpdates] = useState(false);
   const [loading, setLoading] = useState(true);
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
-  const [page, setPage] = useState<"home" | "formulas" | "variables" | "assistant" | "settings">("home");
+  const [page, setPage] = useState<"home" | "formulas" | "assistant" | "settings">("home");
   const [pendingFormula, setPendingFormula] = useState<PendingFormula | null>(null);
   const [appVersion, setAppVersion] = useState("");
   const [update, setUpdate] = useState<main.UpdateInfo | null>(null);
@@ -227,8 +225,6 @@ export default function App() {
           pendingFormula={pendingFormula}
           onPendingConsumed={() => setPendingFormula(null)}
         />
-      ) : page === "variables" ? (
-        <VariablesPage views={views} />
       ) : page === "assistant" ? (
         <AssistantPage
           onChange={refreshPresets}

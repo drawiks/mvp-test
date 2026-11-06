@@ -20,6 +20,8 @@ import { linearToExpression } from "@/lib/format";
 import { heroName } from "@/lib/heroNames";
 import { cn } from "@/lib/utils";
 
+const FORMULA_HINT =
+  "let name = выражение; · if/elif/else · + − * / ** · сравнения · логика && || ! · max/min/abs/round";
 const EDITABLE = WEIGHT_META.filter((m) => m.key !== "networth" && !m.chipOnly);
 const GROUPS = [...new Set(EDITABLE.map((m) => m.group))].map((g) => ({ group: g, items: EDITABLE.filter((m) => m.group === g) }));
 
@@ -114,7 +116,6 @@ type FormulasPageProps = {
 export default function FormulasPage({ presets, activeId, onChange, pendingFormula, onPendingConsumed }: FormulasPageProps) {
   const [activePreset, setActivePreset] = useState(presets.find((p) => p.id === activeId) ?? null);
   const [draftExpr, setDraftExpr] = useState("");
-  const [variables, setVariables] = useState<formula.Variable[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [showWeightSliders, setShowWeightSliders] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -129,7 +130,6 @@ export default function FormulasPage({ presets, activeId, onChange, pendingFormu
     setActivePreset(p);
     if (p) {
       setDraftExpr(p.kind === "expression" ? p.expression : linearToExpression(p.weights ?? {}, EDITABLE));
-      void Bindings.ListVariables().then(setVariables);
     }
   }, [activeId, presets, draftOverride]);
 
@@ -146,7 +146,6 @@ export default function FormulasPage({ presets, activeId, onChange, pendingFormu
     setActivePreset(draft);
     setDraftExpr(pendingFormula.expression);
     setShowWeightSliders(false);
-    void Bindings.ListVariables().then(setVariables);
     onPendingConsumed?.();
   }, [pendingFormula, onPendingConsumed]);
 
@@ -418,8 +417,9 @@ export default function FormulasPage({ presets, activeId, onChange, pendingFormu
                   ) : (
                     <>
                       <FormulaEditor ref={editorRef} expression={draftExpr} onChange={setDraftExpr} height="220px" />
+                      <p className="text-[10px] text-muted-foreground">{FORMULA_HINT}</p>
                       <div className="flex flex-wrap gap-1">
-                        <TokenPalette variables={variables} onInsert={insertToken} />
+                        <TokenPalette onInsert={insertToken} />
                       </div>
                       {preview && <PlayerPreview preview={preview} />}
                     </>
@@ -430,9 +430,10 @@ export default function FormulasPage({ presets, activeId, onChange, pendingFormu
               {!isLinear && (
                 <>
                   <FormulaEditor ref={editorRef} expression={draftExpr} onChange={setDraftExpr} height="220px" readOnly={isBuiltin} />
+                  <p className="text-[10px] text-muted-foreground">{FORMULA_HINT}</p>
                   {!isBuiltin && (
                     <div className="flex flex-wrap gap-1">
-                      <TokenPalette variables={variables} onInsert={insertToken} />
+                      <TokenPalette onInsert={insertToken} />
                     </div>
                   )}
                   {preview && <PlayerPreview preview={preview} />}

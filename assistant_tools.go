@@ -28,7 +28,6 @@ type assistantPlayerInfo struct {
 	Name        string             `json:"name,omitempty"`
 	SteamID     int64              `json:"steam_id,omitempty"`
 	Stats       map[string]float64 `json:"stats,omitempty"`
-	Variables   map[string]float64 `json:"variables,omitempty"`
 }
 
 type assistantMvpInfo struct {
@@ -99,7 +98,7 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "get_player",
-			Description: "Полная статистика одного игрока и значения пользовательских переменных. Используй для 1–2 ключевых игроков, не для всех.",
+			Description: "Полная статистика одного игрока. Используй для 1–2 ключевых игроков, не для всех.",
 			Parameters: objectSchema(map[string]any{
 				"player_id": map[string]any{"type": "integer", "description": "player_id от 0 до 9"},
 			}, "player_id"),
@@ -136,14 +135,6 @@ func (a *App) assistantTools() []assistant.Tool {
 			},
 		},
 		{
-			Name:        "list_variables",
-			Description: "Пользовательские переменные и их выражения. Используй, если формула ссылается на переменную или нужно предложить новую.",
-			Parameters:  objectSchema(nil),
-			Run: func(ctx context.Context, args map[string]any) (any, error) {
-				return a.varStore.Variables(), nil
-			},
-		},
-		{
 			Name:        "validate_formula",
 			Description: "Проверить синтаксис, операторы и допустимые токены формулы. Вызывай до preview_formula и propose_formula.",
 			Parameters: objectSchema(map[string]any{
@@ -151,7 +142,7 @@ func (a *App) assistantTools() []assistant.Tool {
 			}, "expression"),
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				expr := stringArg(args, "expression")
-				if err := formula.Validate(expr, a.varStore.AllowedNames()); err != nil {
+				if err := formula.Validate(expr, formula.BaseTokens()); err != nil {
 					result := map[string]any{"valid": false, "error": err.Error()}
 					if hint := formulaValidationHint(err); hint != "" {
 						result["hint"] = hint
@@ -210,9 +201,9 @@ func (a *App) assistantTools() []assistant.Tool {
 		},
 		{
 			Name:        "get_stat_leaders",
-			Description: "Отсортировать игроков по одному базовому токену или пользовательской переменной. Используй для вопросов «кто лучший по X».",
+			Description: "Отсортировать игроков по одному базовому токену. Используй для вопросов «кто лучший по X».",
 			Parameters: objectSchema(map[string]any{
-				"token": map[string]any{"type": "string", "description": "имя токена или пользовательской переменной"},
+				"token": map[string]any{"type": "string", "description": "имя токена"},
 				"team":  map[string]any{"type": "string", "enum": []string{"radiant", "dire"}, "description": "необязательно: только одна команда"},
 				"limit": map[string]any{"type": "integer", "description": "сколько игроков вернуть, по умолчанию 5"},
 			}, "token"),
@@ -244,7 +235,7 @@ func (a *App) assistantTools() []assistant.Tool {
 			}, "name", "expression"),
 			Run: func(ctx context.Context, args map[string]any) (any, error) {
 				expr := stringArg(args, "expression")
-				if err := formula.Validate(expr, a.varStore.AllowedNames()); err != nil {
+				if err := formula.Validate(expr, formula.BaseTokens()); err != nil {
 					if hint := formulaValidationHint(err); hint != "" {
 						return nil, fmt.Errorf("формула не прошла валидацию: %v. %s", err, hint)
 					}
@@ -293,29 +284,15 @@ func (a *App) toolPlayer(playerID int) (assistantPlayerInfo, error) {
 		return assistantPlayerInfo{}, err
 	}
 	showNames := a.assistantShowNames()
-	defs := a.varStore.Variables()
 	for _, v := range views {
 		if v.PlayerID != playerID {
 			continue
-		}
-		resolved, err := formula.ResolveVars(v.Stats, defs)
-		if err != nil {
-			return assistantPlayerInfo{}, err
-		}
-		values := make(map[string]float64, len(defs))
-		for _, def := range defs {
-			if value, ok := resolved[def.Name]; ok {
-				values[def.Name] = value
-			}
-		}
-		if len(values) == 0 {
-			values = nil
 		}
 		return assistantPlayerInfo{
 			PlayerID: v.PlayerID, Hero: v.Hero, Team: v.Team, Position: v.Position, Lane: v.Lane,
 			Score: v.Score, GlobalPlace: v.GlobalPlace, TeamPlace: v.TeamPlace, MvpRole: v.MvpRole,
 			Name: optionalName(v.Name, showNames), SteamID: optionalSteamID(v.SteamID, showNames),
-			Stats: v.Stats, Variables: values,
+			Stats: v.Stats,
 		}, nil
 	}
 	return assistantPlayerInfo{}, fmt.Errorf("игрок %d не найден", playerID)
@@ -326,7 +303,7 @@ func (a *App) toolPreview(expression string) (assistantPreview, error) {
 	if expression == "" {
 		return assistantPreview{}, errors.New("пустое выражение")
 	}
-	if err := formula.Validate(expression, a.varStore.AllowedNames()); err != nil {
+	if err := formula.Validate(expression, formula.BaseTokens()); err != nil {
 		return assistantPreview{}, err
 	}
 	result, err := a.assistantResult()
@@ -334,7 +311,7 @@ func (a *App) toolPreview(expression string) (assistantPreview, error) {
 		return assistantPreview{}, err
 	}
 	preset := formula.Preset{ID: "__assistant", Name: "__assistant", Kind: "expression", Expression: expression}
-	views, err := BuildViews(*result, preset, a.varStore.Variables())
+	views, err := BuildViews(*result, preset)
 	if err != nil {
 		return assistantPreview{}, err
 	}
@@ -365,11 +342,7 @@ func (a *App) toolExplain(expression string, playerID int) (any, error) {
 	if player == nil {
 		return nil, fmt.Errorf("игрок %d не найден", playerID)
 	}
-	env, err := formula.ResolveVars(mvp.PlayerVars(*player, float64(result.DurationSec)), a.varStore.Variables())
-	if err != nil {
-		return nil, err
-	}
-	rows, err := formula.Breakdown(expression, env)
+	rows, err := formula.Breakdown(expression, mvp.PlayerVars(*player, float64(result.DurationSec)))
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +417,7 @@ func (a *App) toolDiff(aExpr, bExpr string) (FormulaDiff, error) {
 	if aExpr == "" || bExpr == "" {
 		return FormulaDiff{}, errors.New("нужны обе формулы")
 	}
-	allowed := a.varStore.AllowedNames()
+	allowed := formula.BaseTokens()
 	if err := formula.Validate(aExpr, allowed); err != nil {
 		return FormulaDiff{}, fmt.Errorf("формула A: %v", err)
 	}
@@ -459,7 +432,7 @@ func (a *App) toolStatLeaders(args map[string]any) ([]assistantStatLeader, error
 	if token == "" {
 		return nil, errors.New("укажите token")
 	}
-	if !a.varStore.AllowedNames()[token] {
+	if !formula.StatTokens(token) {
 		return nil, fmt.Errorf("неизвестный токен: %s", token)
 	}
 	team := strings.ToLower(strings.TrimSpace(stringArg(args, "team")))
@@ -486,17 +459,12 @@ func (a *App) toolStatLeaders(args map[string]any) ([]assistantStatLeader, error
 		return nil, err
 	}
 	showNames := a.assistantShowNames()
-	defs := a.varStore.Variables()
 	out := make([]assistantStatLeader, 0, len(views))
 	for _, view := range views {
 		if team != "" && view.Team != team {
 			continue
 		}
-		env, err := formula.ResolveVars(view.Stats, defs)
-		if err != nil {
-			return nil, err
-		}
-		value, ok := env[token]
+		value, ok := view.Stats[token]
 		if !ok {
 			return nil, fmt.Errorf("токен %s недоступен", token)
 		}
@@ -574,7 +542,7 @@ func (a *App) assistantViews() (*model.Result, []PlayerView, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	views, err := BuildViews(*result, a.store.Active(), a.varStore.Variables())
+	views, err := BuildViews(*result, a.store.Active())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -627,7 +595,7 @@ func formulaValidationHint(err error) string {
 	case strings.Contains(lower, "callnode"):
 		return "Условие записывается как if condition { A } else { B } или condition ? A : B, без if(condition, A, B)."
 	case strings.Contains(lower, "неизвестная переменная"):
-		return "Используй только токены из get_token_catalog или list_variables."
+		return "Используй только токены из get_token_catalog или объяви локальную переменную через let."
 	default:
 		return ""
 	}

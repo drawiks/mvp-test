@@ -110,24 +110,56 @@ var DefaultLinearWeights = map[string]float64{
 	"heal_value": 0.0, "time_dead": 0.0, "creeps_stacked": 0.0,
 }
 
-const TutorialFormula = `kills * 0.2 + assists * 0.15 + last_hits * 0.003 + xpm * 0.003` +
-	` + (damage_taken / max(deaths, 1)) * 0.00015 + min(healing, 8000) * 0.001` +
-	` + (if position == 1 { kills * 2 } else if position == 2 { kills * 1.5 } else { kills })` +
-	` + (if kills > 10 && deaths < 5 { 3 } else { 0 })` +
-	` + (if !(assists < 3) { 2 } else { 0 })` +
-	` + (stun_duration >= 30 ? 1.5 : 0)` +
-	` + round(save_duration * 0.01)` +
-	` + min(save_duration + purge_count + shield_duration, 500) * 0.015 + min(buff_duration, 600) * 0.008`
+const TutorialFormula = `# Учебная формула: показывает возможности языка на реальных токенах.
+# Синтаксис локальных переменных:
+#   let имя = выражение;
+# После let обязательна точка с запятой. Переменная видна только внутри формулы.
+# elif — сокращение для else if.
+#
+# 1. Боевой вклад: убийства, помощь, урон по героям.
+let combat = kills * 0.2 + assists * 0.15 + hero_damage * 0.00005;
+# 2. Фарм и темп: ластхиты, GPM, XPM, урон по строениям.
+let farm = last_hits * 0.003 + gpm * 0.002 + xpm * 0.003 + tower_damage * 0.0007;
+# 3. Выживаемость: полученный урон на смерть.
+let survival = damage_taken / max(deaths, 1) * 0.00015;
+# 4. Поддержка: лечение, станы, спасения, щиты и очищения.
+let support = min(healing, 8000) * 0.001 + stun_duration * 0.02
+    + min(save_duration + purge_count + shield_duration, 500) * 0.015;
+# 5. Утилити: стаки, руны, баффы, трупы/лотусы.
+let utility = camps_stacked * 0.15 + rune_pickups * 0.1
+    + min(buff_duration, 600) * 0.008
+    + wisdoms_captured * 0.1 + watchers_captured * 0.1 + lotuses_gathered * 0.1;
+# 6. Видение и расходники.
+let vision = gold_spent_wards * 0.0015 + gold_spent_smoke * 0.0015 + gold_spent_dust * 0.0015;
+# 7. Роль: ядро и поддержка получают разные бонусы.
+let role_bonus = if position == 1 {
+    kills * 1.5 + farm * 0.5
+} elif position == 2 {
+    kills * 1.2 + rune_pickups * 0.5
+} elif position == 3 {
+    survival * 2 + stun_duration * 0.05
+} else {
+    support * 1.5 + vision * 2
+};
+# 8. Условия, логика и округление.
+let consistency = if kills > 10 && deaths < 5 { 3 } else { 0 };
+let support_bonus = if !(assists < 3) { 2 } else { 0 };
+let stun_bonus = if stun_duration >= 30 { 1.5 } else { 0 };
+let rounded_save = round(save_duration * 0.01);
+# 9. Итог: локальные переменные можно складывать как обычные числа.
+combat + farm + survival + support + utility + vision + role_bonus + consistency + support_bonus + stun_bonus + rounded_save`
 
-const StandardV2Formula = "kills * 0.2 + assists * 0.15 + last_hits * 0.003 + xpm * 0.003" +
-	" + tower_damage * 0.0007 + hero_damage * 0.00005" +
-	" + (damage_taken / max(deaths, 1)) * 0.00015" +
-	" + min(healing, 8000) * 0.001 + stun_duration * 0.02" +
-	" + camps_stacked * 0.15 + rune_pickups * 0.1" +
-	" + min(save_duration + purge_count + shield_duration, 500) * 0.015" +
-	" + min(buff_duration, 600) * 0.008" +
-	" + gold_spent_wards * 0.0015 + gold_spent_smoke * 0.0015 + gold_spent_dust * 0.0015" +
-	" + first_blood * 1 + (0 - deaths * 0.2)"
+const StandardV2Formula = `let core = kills * 0.2 + assists * 0.15 + last_hits * 0.003 + xpm * 0.003;
+let objectives = tower_damage * 0.0007 + hero_damage * 0.00005;
+let survival = damage_taken / max(deaths, 1) * 0.00015;
+let support = min(healing, 8000) * 0.001 + stun_duration * 0.02;
+let utility = camps_stacked * 0.15 + rune_pickups * 0.1
+    + min(save_duration + purge_count + shield_duration, 500) * 0.015
+    + min(buff_duration, 600) * 0.008;
+let vision = gold_spent_wards * 0.0015 + gold_spent_smoke * 0.0015 + gold_spent_dust * 0.0015;
+let bonus = first_blood * 1;
+let penalty = deaths * 0.2;
+core + objectives + survival + support + utility + vision + bonus - penalty`
 
 type FormulaError struct{ msg string }
 
@@ -168,6 +200,11 @@ func stripComments(s string) string {
 // to 0 so old saved formulas keep validating.
 var migrateRe = regexp.MustCompile(`\b(buffs_duration|deaths_base|save|purge_duration|purge|shield_uptime)\b`)
 
+var (
+	localDeclRe = regexp.MustCompile(`\blet\s+[A-Za-z_][A-Za-z0-9_]*\s*=`)
+	elifRe      = regexp.MustCompile(`\belif\b`)
+)
+
 func migrate(s string) string {
 	return migrateRe.ReplaceAllStringFunc(s, func(w string) string {
 		switch w {
@@ -186,48 +223,31 @@ func migrate(s string) string {
 }
 
 // MigrateExpression rewrites legacy stat tokens to their current names. Used
-// when loading stored presets/variables so saved formulas keep working.
+// when loading stored presets so saved formulas keep working.
 func MigrateExpression(s string) string { return migrate(stripComments(s)) }
 
-// splitStatements splits a formula on top-level ";" separators (respecting
-// parentheses and braces) so multiline formulas can be written as:
-//
-//	kills * 0.2;
-//	assists * 0.15
-func splitStatements(s string) []string {
-	var stmts []string
-	depth, start := 0, 0
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '(', '{':
-			depth++
-		case ')', '}':
-			if depth > 0 {
-				depth--
-			}
-		case ';':
-			if depth == 0 {
-				if t := strings.TrimSpace(s[start:i]); t != "" {
-					stmts = append(stmts, t)
-				}
-				start = i + 1
-			}
-		}
-	}
-	if t := strings.TrimSpace(s[start:]); t != "" {
-		stmts = append(stmts, t)
-	}
-	return stmts
+// prepareFormula normalizes a formula for parsing/evaluation: strips comments,
+// migrates legacy tokens, and expands the elif shorthand to else if.
+func prepareFormula(s string) string {
+	s = migrate(stripComments(s))
+	return elifRe.ReplaceAllString(s, "else if")
 }
 
-// prepareFormula normalizes a formula for parsing/evaluation: strips comments,
-// migrates legacy tokens, and joins `;`-separated statements back into a sum.
-func prepareFormula(s string) string {
-	var joined []string
-	for _, stmt := range splitStatements(stripComments(s)) {
-		joined = append(joined, migrate(stmt))
+// HasStatements reports whether a formula contains let declarations or
+// multiple statements. Such formulas are evaluated as a whole, not decomposed
+// into additive terms.
+func HasStatements(expression string) bool {
+	prepared := prepareFormula(expression)
+	return strings.Contains(prepared, ";") || localDeclRe.MatchString(prepared)
+}
+
+// BaseTokens returns the base stat token set used by formula validation.
+func BaseTokens() map[string]bool {
+	out := make(map[string]bool, len(statTokens))
+	for token := range statTokens {
+		out[token] = true
 	}
-	return strings.Join(joined, " + ")
+	return out
 }
 
 func constValue(n ast.Node) (float64, bool) {
@@ -328,6 +348,9 @@ func parseExpression(expression string) (*parser.Tree, error) {
 }
 
 func ExpressionToWeights(expression string) (map[string]float64, bool) {
+	if HasStatements(expression) {
+		return nil, false
+	}
 	tree, err := parseExpression(expression)
 	if err != nil {
 		return nil, false
@@ -345,6 +368,9 @@ func ExpressionToWeights(expression string) (map[string]float64, bool) {
 }
 
 func SplitExpression(expression string) (map[string]float64, string) {
+	if HasStatements(expression) {
+		return map[string]float64{}, strings.TrimSpace(expression)
+	}
 	tree, err := parseExpression(expression)
 	if err != nil {
 		return map[string]float64{}, strings.TrimSpace(expression)
@@ -376,10 +402,15 @@ func LinearToExpression(weights map[string]float64) string {
 	return strings.Join(parts, " + ")
 }
 
+// Validate checks a formula against base stat tokens and locally declared
+// variables. Local variables are scoped to their let expression.
 func Validate(expression string, allowed map[string]bool) error {
 	prepared := prepareFormula(expression)
 	if strings.TrimSpace(prepared) == "" {
 		return errf("Формула пустая")
+	}
+	if allowed == nil {
+		allowed = statTokens
 	}
 	tree, err := parseExpression(expression)
 	if err != nil {
@@ -451,6 +482,26 @@ func checkNode(n ast.Node, allowed map[string]bool) error {
 			}
 		}
 		return nil
+	case *ast.VariableDeclaratorNode:
+		if statTokens[node.Name] || Funcs[node.Name] {
+			return errf("Имя локальной переменной занято: %s", node.Name)
+		}
+		if err := checkNode(node.Value, allowed); err != nil {
+			return err
+		}
+		scope := make(map[string]bool, len(allowed)+1)
+		for name := range allowed {
+			scope[name] = true
+		}
+		scope[node.Name] = true
+		return checkNode(node.Expr, scope)
+	case *ast.SequenceNode:
+		for _, sub := range node.Nodes {
+			if err := checkNode(sub, allowed); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	return errf("Недопустимая часть формулы: %s", typeName(n))
 }
@@ -468,11 +519,7 @@ func typeName(n ast.Node) string {
 }
 
 func Eval(expression string, vars map[string]float64) (float64, error) {
-	allowed := map[string]bool{}
-	for k := range vars {
-		allowed[k] = true
-	}
-	if err := Validate(expression, allowed); err != nil {
+	if err := Validate(expression, statTokens); err != nil {
 		return 0, err
 	}
 	return run(expression, vars)
@@ -524,47 +571,55 @@ type BreakdownRow struct {
 	Value float64 `json:"value"`
 }
 
-// Breakdown evaluates each top-level term of a formula separately, returning
-// one row per term in source order. Terms are split on `+`/`-` at brace depth
-// zero (so flat sums without `;` decompose too); `;`-statements act as stronger
-// boundaries. The sum of the rows equals the full-formula score. If term
-// splitting fails or yields a single term, the whole statement becomes one row.
+// Breakdown evaluates each top-level term of a simple expression separately.
+// Formulas with local variables or multiple statements are evaluated as a
+// whole and returned as one row.
 func Breakdown(expression string, vars map[string]float64) ([]BreakdownRow, error) {
 	env := make(map[string]any, len(vars))
 	for k, v := range vars {
 		env[k] = v
 	}
-	rows := []BreakdownRow{}
-	for _, raw := range splitStatements(stripComments(expression)) {
-		stmt := migrate(raw)
-		trimmed := strings.TrimSpace(stmt)
-		if trimmed == "" {
-			continue
-		}
-		if terms := splitTerms(stmt); len(terms) > 1 {
-			if termRows, ok := evalTerms(terms, env); ok {
-				rows = append(rows, termRows...)
-				continue
-			}
-		}
-		program, err := expr.Compile(stmt)
-		if err != nil {
-			return nil, errf("Ошибка в формуле: %v", err)
-		}
-		out, err := expr.Run(program, env)
-		if err != nil {
-			return nil, errf("Ошибка вычисления: %v", err)
-		}
-		v, ok := toFloat(out)
-		if !ok {
-			return nil, errf("Ошибка вычисления: нечисловой результат")
-		}
-		if math.IsInf(v, 0) || math.IsNaN(v) {
-			return nil, errf("Деление на ноль")
-		}
-		rows = append(rows, BreakdownRow{Label: trimmed, Value: v})
+	prepared := prepareFormula(expression)
+	trimmed := strings.TrimSpace(prepared)
+	if trimmed == "" {
+		return nil, nil
 	}
-	return rows, nil
+	if HasStatements(prepared) {
+		v, err := evalWhole(trimmed, env)
+		if err != nil {
+			return nil, err
+		}
+		return []BreakdownRow{{Label: "Итого", Value: v}}, nil
+	}
+	if terms := splitTerms(trimmed); len(terms) > 1 {
+		if termRows, ok := evalTerms(terms, env); ok {
+			return termRows, nil
+		}
+	}
+	v, err := evalWhole(trimmed, env)
+	if err != nil {
+		return nil, err
+	}
+	return []BreakdownRow{{Label: trimmed, Value: v}}, nil
+}
+
+func evalWhole(expression string, env map[string]any) (float64, error) {
+	program, err := expr.Compile(expression)
+	if err != nil {
+		return 0, errf("Ошибка в формуле: %v", err)
+	}
+	out, err := expr.Run(program, env)
+	if err != nil {
+		return 0, errf("Ошибка вычисления: %v", err)
+	}
+	v, ok := toFloat(out)
+	if !ok {
+		return 0, errf("Ошибка вычисления: нечисловой результат")
+	}
+	if math.IsInf(v, 0) || math.IsNaN(v) {
+		return 0, errf("Деление на ноль")
+	}
+	return v, nil
 }
 
 // evalTerms evaluates each term independently, returning ok=false if any term
@@ -624,15 +679,17 @@ func splitTerms(stmt string) []string {
 	return append(terms, strings.TrimSpace(stmt[start:]))
 }
 
-// Terms returns the top-level additive terms of an expression after comment
-// stripping and legacy-token migration. It is used for formula diffs.
+// Terms returns the top-level additive terms of a simple expression. Formulas
+// with local variables or multiple statements have no term-level diff.
 func Terms(expression string) []string {
+	prepared := prepareFormula(expression)
+	if HasStatements(prepared) {
+		return nil
+	}
 	out := []string{}
-	for _, raw := range splitStatements(stripComments(expression)) {
-		for _, term := range splitTerms(migrate(raw)) {
-			if t := strings.TrimSpace(term); t != "" {
-				out = append(out, t)
-			}
+	for _, term := range splitTerms(prepared) {
+		if t := strings.TrimSpace(term); t != "" {
+			out = append(out, t)
 		}
 	}
 	return out

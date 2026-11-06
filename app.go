@@ -25,7 +25,6 @@ const parserURLDefault = "http://localhost:5600"
 type App struct {
 	ctx          context.Context
 	store        *formula.Store
-	varStore     *formula.VariableStore
 	configPath   string
 	parserURL    string
 	parserEngine string
@@ -76,7 +75,12 @@ func (a *App) startup(ctx context.Context) {
 	a.configPath = filepath.Join(dir, "config.json")
 	a.assistantHistoryPath = filepath.Join(dir, "assistant-history.json")
 	a.store = formula.NewStore(filepath.Join(dir, "formulas.json"))
-	a.varStore = formula.NewVariableStore(filepath.Join(dir, "variables.json"))
+	_ = os.Remove(filepath.Join(dir, "variables.json"))
+	_ = os.Remove(filepath.Join(dir, "variables.json.tmp"))
+	if err := a.store.ValidatePreset(a.store.Active()); err != nil {
+		a.store.SetActive("standard_v2")
+		a.store.Save()
+	}
 	cfg := appConfig{
 		ParserURL:    parserURLDefault,
 		ParserEngine: parse.EngineOdota,
@@ -340,7 +344,7 @@ func (a *App) SetActivePreset(id string) error {
 }
 
 func (a *App) UpsertPreset(p formula.Preset) error {
-	if err := a.store.ValidatePreset(p, a.varStore.AllowedNames()); err != nil {
+	if err := a.store.ValidatePreset(p); err != nil {
 		return err
 	}
 	if p.ID == "standard_v2" || p.ID == "tutorial" {
@@ -417,110 +421,6 @@ func (a *App) ExportPresetDialog(id string) (bool, error) {
 	return true, nil
 }
 
-func (a *App) ListVariables() []formula.Variable { return a.varStore.Variables() }
-
-func (a *App) UpsertVariable(v formula.Variable) error {
-	if err := a.varStore.ValidateVariable(v); err != nil {
-		return err
-	}
-	if a.varStore.NameTaken(strings.TrimSpace(v.Name), v.ID) {
-		return errors.New("переменная с таким названием уже существует")
-	}
-	a.varStore.Add(v)
-	a.varStore.Save()
-	a.EmitResult()
-	return nil
-}
-
-func (a *App) RemoveVariable(id string) error {
-	if !a.varStore.Remove(id) {
-		return errors.New("переменная не найдена")
-	}
-	a.varStore.Save()
-	a.EmitResult()
-	return nil
-}
-
-func (a *App) EvalVariable(name, expr string, base map[string]float64) (float64, error) {
-	if strings.TrimSpace(expr) == "" {
-		return 0, errors.New("Введите выражение переменной")
-	}
-	allowed := a.varStore.AllowedNames()
-	delete(allowed, name)
-	if err := formula.Validate(expr, allowed); err != nil {
-		return 0, err
-	}
-	env, err := formula.ResolveVars(base, a.varStore.Variables())
-	if err != nil {
-		return 0, err
-	}
-	return formula.Eval(expr, env)
-}
-
-func (a *App) TestPlayerStats() map[string]float64 {
-	p := model.Player{
-		Kills: 10, Deaths: 4, Assists: 7, LastHits: 250, GPM: 580, XPM: 640,
-		Healing: 9000, ManaRestored: 2500, HeroDamage: 20000, DamageTaken: 15000, TowerDamage: 3200,
-		StunDuration: 45, CampsStacked: 9, RunePickups: 5, FirstBlood: true,
-		GoldSpentWards: 500, GoldSpentSmoke: 100, GoldSpentDust: 50, GoldLost: 800,
-		BuffsDuration: 700, Save: 300, Purge: 120, ShieldUptime: 40,
-		BuffStatsDuration: 200, InvisibilityDuration: 30, BuffHasteDuration: 60,
-		CreepsStacked: 4, TimeDead: 480, Position: 2, Lane: "mid",
-	}
-	return mvp.PlayerVars(p, 3600)
-}
-
-func (a *App) ImportVariableDialog() (formula.Variable, bool) {
-	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
-		Title:   "Импорт переменной",
-		Filters: []runtime.FileFilter{{DisplayName: "Переменные (*.json)", Pattern: "*.json"}, {DisplayName: "Все файлы", Pattern: "*"}},
-	})
-	if err != nil || path == "" {
-		return formula.Variable{}, false
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{Type: runtime.ErrorDialog, Title: "Импорт", Message: "Не удалось прочитать файл: " + err.Error()})
-		return formula.Variable{}, false
-	}
-	var v formula.Variable
-	if err := json.Unmarshal(data, &v); err != nil {
-		runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{Type: runtime.ErrorDialog, Title: "Импорт", Message: "Не удалось прочитать файл"})
-		return formula.Variable{}, false
-	}
-	if err := a.varStore.ValidateVariable(v); err != nil {
-		runtime.MessageDialog(a.ctx, runtime.MessageDialogOptions{Type: runtime.ErrorDialog, Title: "Импорт", Message: err.Error()})
-		return formula.Variable{}, false
-	}
-	a.varStore.Add(v)
-	a.varStore.Save()
-	a.EmitResult()
-	return v, true
-}
-
-func (a *App) ExportVariableDialog(id string) (bool, error) {
-	target, ok := a.varStore.Get(id)
-	if !ok {
-		return false, errors.New("переменная не найдена")
-	}
-	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		Title:           "Экспорт переменной",
-		DefaultFilename: "variable.json",
-		Filters:         []runtime.FileFilter{{DisplayName: "Переменные (*.json)", Pattern: "*.json"}},
-	})
-	if err != nil || path == "" {
-		return false, nil
-	}
-	body, err := json.MarshalIndent(target, "", "  ")
-	if err != nil {
-		return false, err
-	}
-	if err := os.WriteFile(path, body, 0o644); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
 func (a *App) CurrentPreset() formula.Preset { return a.store.Active() }
 
 func (a *App) EvalPreview(expr string) ([]PlayerView, error) {
@@ -530,7 +430,7 @@ func (a *App) EvalPreview(expr string) ([]PlayerView, error) {
 		return nil, errors.New("сначала откройте реплей")
 	}
 	preset := formula.Preset{ID: "__preview", Name: "__preview", Kind: "expression", Expression: expr}
-	return BuildViews(*a.result, preset, a.varStore.Variables())
+	return BuildViews(*a.result, preset)
 }
 
 // EvalBreakdown evaluates each top-level term of an expression against a single
@@ -551,17 +451,13 @@ func (a *App) EvalBreakdown(expression string, playerID int) ([]formula.Breakdow
 	if player == nil {
 		return nil, errors.New("игрок не найден")
 	}
-	env, err := formula.ResolveVars(mvp.PlayerVars(*player, float64(a.result.DurationSec)), a.varStore.Variables())
-	if err != nil {
-		return nil, err
-	}
-	return formula.Breakdown(expression, env)
+	return formula.Breakdown(expression, mvp.PlayerVars(*player, float64(a.result.DurationSec)))
 }
 
 // ValidateExpression checks a formula expression without needing a loaded
 // replay. It backs the in-editor linter so syntax errors surface immediately.
 func (a *App) ValidateExpression(expression string) error {
-	return formula.Validate(expression, a.varStore.AllowedNames())
+	return formula.Validate(expression, formula.BaseTokens())
 }
 
 func (a *App) Recompute() { a.EmitResult() }
@@ -575,7 +471,7 @@ func (a *App) EmitResult() {
 	if a.result == nil {
 		return
 	}
-	views, err := BuildViews(*a.result, a.store.Active(), a.varStore.Variables())
+	views, err := BuildViews(*a.result, a.store.Active())
 	if err != nil {
 		runtime.LogError(a.ctx, err.Error())
 		return
@@ -619,8 +515,8 @@ func (a *App) HeroImageURL(hero string) string {
 	return "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/" + hero + ".png"
 }
 
-func BuildViews(result model.Result, preset formula.Preset, vars []formula.Variable) ([]PlayerView, error) {
-	ranked, err := mvp.RankedPlayers(result, preset, vars)
+func BuildViews(result model.Result, preset formula.Preset) ([]PlayerView, error) {
+	ranked, err := mvp.RankedPlayers(result, preset)
 	if err != nil {
 		return nil, err
 	}
@@ -630,7 +526,7 @@ func BuildViews(result model.Result, preset formula.Preset, vars []formula.Varia
 	}
 	teamPlace := map[int64]int{}
 	for _, team := range []string{result.WinnerTeam(), result.LoserTeam()} {
-		list, err := mvp.RankTeam(result, team, preset, vars)
+		list, err := mvp.RankTeam(result, team, preset)
 		if err != nil {
 			return nil, err
 		}
@@ -638,7 +534,7 @@ func BuildViews(result model.Result, preset formula.Preset, vars []formula.Varia
 			teamPlace[p.SteamID] = i + 1
 		}
 	}
-	mvps, err := mvp.SelectMvps(result, preset, vars)
+	mvps, err := mvp.SelectMvps(result, preset)
 	if err != nil {
 		return nil, err
 	}
@@ -654,7 +550,7 @@ func BuildViews(result model.Result, preset formula.Preset, vars []formula.Varia
 		if p.Team != "radiant" && p.Team != "dire" {
 			continue
 		}
-		score, err := mvp.ComputeScoreVars(p, duration, preset, vars)
+		score, err := mvp.ComputeScoreAt(p, duration, preset)
 		if err != nil {
 			return nil, err
 		}

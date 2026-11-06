@@ -42,20 +42,12 @@ export function EvalPreview(arg1) {
   return window['go']['main']['App']['EvalPreview'](arg1);
 }
 
-export function EvalVariable(arg1, arg2, arg3) {
-  return window['go']['main']['App']['EvalVariable'](arg1, arg2, arg3);
-}
-
 export function ExportPreset(arg1, arg2) {
   return window['go']['main']['App']['ExportPreset'](arg1, arg2);
 }
 
 export function ExportPresetDialog(arg1) {
   return window['go']['main']['App']['ExportPresetDialog'](arg1);
-}
-
-export function ExportVariableDialog(arg1) {
-  return window['go']['main']['App']['ExportVariableDialog'](arg1);
 }
 
 export function DiffFormula(arg1, arg2) {
@@ -102,10 +94,6 @@ export function ImportPresetDialog() {
   return window['go']['main']['App']['ImportPresetDialog']();
 }
 
-export function ImportVariableDialog() {
-  return window['go']['main']['App']['ImportVariableDialog']();
-}
-
 export function InstallUpdate() {
   return window['go']['main']['App']['InstallUpdate']();
 }
@@ -116,10 +104,6 @@ export function ListAssistantModels(arg1) {
 
 export function ListPresets() {
   return window['go']['main']['App']['ListPresets']();
-}
-
-export function ListVariables() {
-  return window['go']['main']['App']['ListVariables']();
 }
 
 export function ParseReplay(arg1) {
@@ -136,10 +120,6 @@ export function RemovePreset(arg1) {
 
 export function RejectAssistantAction(arg1) {
   return window['go']['main']['App']['RejectAssistantAction'](arg1);
-}
-
-export function RemoveVariable(arg1) {
-  return window['go']['main']['App']['RemoveVariable'](arg1);
 }
 
 export function SaveAssistantSettings(arg1) {
@@ -182,16 +162,8 @@ export function TestGoogleKeys() {
   return window['go']['main']['App']['TestGoogleKeys']();
 }
 
-export function TestPlayerStats() {
-  return window['go']['main']['App']['TestPlayerStats']();
-}
-
 export function UpsertPreset(arg1) {
   return window['go']['main']['App']['UpsertPreset'](arg1);
-}
-
-export function UpsertVariable(arg1) {
-  return window['go']['main']['App']['UpsertVariable'](arg1);
 }
 
 export function ValidateExpression(arg1) {

@@ -8,7 +8,7 @@ import * as Bindings from "../../wailsjs/go/main/App";
 
 const statTokens = WEIGHT_TOKENS.map((m) => m.key);
 const funcTokens = ["max", "min", "abs", "round"];
-const keywordTokens = ["if", "else", "elif", "true", "false"];
+const keywordTokens = ["let", "if", "else", "elif", "true", "false"];
 const operators = ["+", "-", "*", "/", "**", "==", "!=", "<", ">", "<=", ">=", "&&", "||", "!", "?", ":", "{", "}", "(", ")"];
 
 const formulaParser: StreamParser<object> = {
@@ -20,13 +20,13 @@ const formulaParser: StreamParser<object> = {
     const start = stream.pos;
     if (stream.match(/[a-zA-Z_][a-zA-Z0-9_]*/)) {
       const w = stream.string.slice(start, stream.pos);
-      if (w === "if" || w === "else" || w === "elif") return "keyword";
+      if (w === "let" || w === "if" || w === "else" || w === "elif") return "keyword";
       if (w === "true" || w === "false") return "boolean";
       if (funcTokens.includes(w)) return "propertyName";
       return "variableName";
     }
     if (stream.match(/\*\*|==|!=|<=|>=|&&|\|\|/) || stream.match(/[+\-*/<>!]/)) return "operator";
-    if (stream.match(/[{}()?:,]/)) return "punctuation";
+    if (stream.match(/[{}()?:,;]/)) return "punctuation";
     stream.next();
     return "invalid";
   },
@@ -84,7 +84,11 @@ export const formulaTheme = [formulaDarkTheme, syntaxHighlighting(formulaHighlig
 export function formulaAutocomplete(context: CompletionContext) {
   const word = context.matchBefore(/\w+/);
   if (!word || !word.text) return null;
-  const options = [...statTokens, ...funcTokens, ...keywordTokens, ...operators]
+  const doc = context.state.doc.toString();
+  const locals: string[] = [];
+  const re = /\blet\s+([A-Za-z_]\w*)\s*=/g;
+  for (let m = re.exec(doc); m; m = re.exec(doc)) locals.push(m[1]);
+  const options = [...new Set([...statTokens, ...funcTokens, ...keywordTokens, ...operators, ...locals])]
     .filter((t) => t.startsWith(word.text))
     .map((label) => ({ label, type: "keyword" as const }));
   return { from: word.from, options };

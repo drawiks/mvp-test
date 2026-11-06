@@ -364,23 +364,15 @@ func PresetWeights(p formula.Preset) Weights {
 }
 
 func ComputeScore(p model.Player, preset formula.Preset) (float64, error) {
-	return ComputeScoreVars(p, 0, preset, nil)
+	return ComputeScoreAt(p, 0, preset)
 }
 
-func ComputeScoreVars(p model.Player, duration float64, preset formula.Preset, vars []formula.Variable) (float64, error) {
+func ComputeScoreAt(p model.Player, duration float64, preset formula.Preset) (float64, error) {
 	if preset.Kind == "expression" {
 		if preset.Expression == "" {
 			return 0, nil
 		}
-		env := PlayerVars(p, duration)
-		if len(vars) > 0 {
-			var err error
-			env, err = formula.ResolveVars(env, vars)
-			if err != nil {
-				return 0, err
-			}
-		}
-		return formula.Eval(preset.Expression, env)
+		return formula.Eval(preset.Expression, PlayerVars(p, duration))
 	}
 	w := PresetWeights(preset)
 	total := 0.0
@@ -401,7 +393,7 @@ func ScoreLinear(p model.Player, w Weights) float64 {
 	return total
 }
 
-func RankedPlayers(result model.Result, preset formula.Preset, vars []formula.Variable) ([]model.Player, error) {
+func RankedPlayers(result model.Result, preset formula.Preset) ([]model.Player, error) {
 	type scored struct {
 		player model.Player
 		score  float64
@@ -412,7 +404,7 @@ func RankedPlayers(result model.Result, preset formula.Preset, vars []formula.Va
 		if p.Team != "radiant" && p.Team != "dire" {
 			continue
 		}
-		s, err := ComputeScoreVars(p, duration, preset, vars)
+		s, err := ComputeScoreAt(p, duration, preset)
 		if err != nil {
 			return nil, err
 		}
@@ -426,7 +418,7 @@ func RankedPlayers(result model.Result, preset formula.Preset, vars []formula.Va
 	return out, nil
 }
 
-func RankTeam(result model.Result, team string, preset formula.Preset, vars []formula.Variable) ([]model.Player, error) {
+func RankTeam(result model.Result, team string, preset formula.Preset) ([]model.Player, error) {
 	filtered := make([]model.Player, 0, 5)
 	for _, p := range result.Players {
 		if p.Team == team {
@@ -435,10 +427,10 @@ func RankTeam(result model.Result, team string, preset formula.Preset, vars []fo
 	}
 	full := result
 	full.Players = filtered
-	return RankedPlayers(full, preset, vars)
+	return RankedPlayers(full, preset)
 }
 
-func SelectMvps(result model.Result, preset formula.Preset, vars []formula.Variable) (map[string]*model.Player, error) {
+func SelectMvps(result model.Result, preset formula.Preset) (map[string]*model.Player, error) {
 	type scored struct {
 		player model.Player
 		score  float64
@@ -450,7 +442,7 @@ func SelectMvps(result model.Result, preset formula.Preset, vars []formula.Varia
 			if result.Players[i].Team != team {
 				continue
 			}
-			s, err := ComputeScoreVars(result.Players[i], duration, preset, vars)
+			s, err := ComputeScoreAt(result.Players[i], duration, preset)
 			if err != nil {
 				return nil, err
 			}
