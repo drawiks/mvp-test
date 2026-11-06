@@ -55,16 +55,26 @@ export default function PlayerDetailsPanel({ views }: { views: main.PlayerView[]
 
       {hero ? (
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-1 pr-2">
-            {PLAYER_TOKENS.map((token) => (
-              <div key={token.key} className="flex items-center gap-2 text-xs">
-                <span className="min-w-0 flex-1 truncate text-muted-foreground" title={token.key}>
-                  {token.label}
-                </span>
-                <span className="font-mono tabular-nums text-foreground">{rawValue(hero, token.key)}</span>
-              </div>
-            ))}
-          </div>
+          <table className="w-full table-fixed border-collapse text-[11px]">
+            <thead className="sticky top-0 z-10 bg-card">
+              <tr>
+                <th className="label-caps w-2/3 border-b border-border px-2 py-1.5 text-left">Токен</th>
+                <th className="label-caps w-1/3 border-b border-border px-2 py-1.5 text-right">Значение</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PLAYER_TOKENS.map((token) => (
+                <tr key={token.key} className="border-b border-border/40 odd:bg-background/30 hover:bg-accent/30">
+                  <td className="truncate px-2 py-1 font-mono text-muted-foreground" title={token.key}>
+                    {token.key}
+                  </td>
+                  <td className="px-2 py-1 text-right font-mono tabular-nums text-foreground">
+                    {rawValue(hero, token.key)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </ScrollArea>
       ) : (
         <p className="text-xs text-muted-foreground">Выберите игрока.</p>

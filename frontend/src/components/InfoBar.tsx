@@ -49,7 +49,7 @@ export default function InfoBar({ info, presets, activeId, onPresetChange }: Pro
         <span className="label-caps">Формула</span>
         {presets.length > 0 ? (
           <Select value={activeId} onValueChange={onPresetChange}>
-            <SelectTrigger className="h-7 w-56 border-border bg-background/60 text-xs">
+            <SelectTrigger className="h-7 w-auto min-w-[10rem] max-w-[18rem] gap-3 border-border bg-background/60 px-2.5 text-xs">
               <SelectValue placeholder={info.presetName} />
             </SelectTrigger>
             <SelectContent>
