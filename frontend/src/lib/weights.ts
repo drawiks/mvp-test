@@ -13,7 +13,7 @@ export const WEIGHT_META: WeightMeta[] = [
   { key: "first_blood", label: "Фёрст блад", group: "Бой", unit: "×" },
   { key: "hero_damage", label: "Урон героям", group: "Бой", unit: "÷" },
   { key: "damage_taken", label: "Полученный урон", group: "Бой", unit: "÷" },
-  { key: "stun_duration", label: "Станы (сек)", group: "Бой", unit: "×" },
+  { key: "stun_duration", label: "Станы/дизейблы (сек)", group: "Бой", unit: "×" },
   { key: "courier_kills", label: "Курьеры убиты", group: "Бой", unit: "×" },
   { key: "fear_duration", label: "Страх (сек)", group: "Дебаффы", unit: "×" },
   { key: "roots_duration", label: "Руты (сек)", group: "Дебаффы", unit: "×" },

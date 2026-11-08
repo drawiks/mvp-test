@@ -3,7 +3,7 @@ module mvp
 go 1.26.6
 
 require (
-	github.com/drawiks/manta-cli v0.6.0
+	github.com/drawiks/manta-cli v0.7.1
 	github.com/expr-lang/expr v1.17.8
 	github.com/klauspost/compress v1.20.3
 	github.com/wailsapp/wails/v2 v2.15.0

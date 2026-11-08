@@ -19,7 +19,7 @@ type Stat struct {
 var Stats = []Stat{
 	{"kills", "Kills"}, {"deaths", "Deaths"}, {"assists", "Assists"},
 	{"last_hits", "Last Hits"}, {"gpm", "GPM"}, {"xpm", "XPM"},
-	{"stun_duration", "Stun Duration"}, {"healing", "Total Healing"}, {"mana_restored", "Mana Restored"},
+	{"stun_duration", "Stun / Disable Duration"}, {"healing", "Total Healing"}, {"mana_restored", "Mana Restored"},
 	{"tower_damage", "Tower Dmg"},
 	{"camps_stacked", "Camps Stacked"}, {"rune_pickups", "Rune Pickups"},
 	{"first_blood", "First Blood"}, {"hero_damage", "Hero Dmg"},

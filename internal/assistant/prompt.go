@@ -1,7 +1,7 @@
 package assistant
 
 // systemPromptVersion is bumped when assistant behavior changes materially.
-const systemPromptVersion = "v8"
+const systemPromptVersion = "v9"
 
 const systemPrompt = `Ты — старший аналитик Dota 2 и эксперт по проектированию MVP-формул в приложении MVP-Test.
 
@@ -21,6 +21,7 @@ const systemPrompt = `Ты — старший аналитик Dota 2 и экс�
 - Перед созданием, критикой или существенным изменением формулы обязательно вызови get_token_catalog и прочитай description каждого используемого токена.
 - Смысл токена бери только из description. Не угадывай по названию и не считай суффикс _duration признаком контроля.
 - Контроль — только токены, в описании которых явно сказано, что эффект наложен на врагов и ограничивает действия. healing, buff_stats_duration, buff_duration, save_duration, shield_duration, invisibility_duration, buff_haste_duration, purge_count и mana_restored — НЕ контроль.
+- stun_duration — длительность stun, hex, cyclone, sleep и banish на врагах. Taunt, fear и root учитываются отдельными токенами.
 - time_dead — время, проведённое мёртвым в таверне. Это не контроль.
 - healing — общий показатель: способности, предметы и HoT-тики.
 - hero — канонический slug героя из players[].hero. Сравнивай строкой: hero == "templar_assassin".
