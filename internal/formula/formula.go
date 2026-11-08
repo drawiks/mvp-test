@@ -386,6 +386,26 @@ func SplitExpression(expression string) (map[string]float64, string) {
 	return weights, strings.Join(tail, " + ")
 }
 
+// UsedTokens returns the base stat tokens referenced by an expression.
+// Local let names and function names are ignored.
+func UsedTokens(expression string) (map[string]bool, error) {
+	tree, err := parseExpression(expression)
+	if err != nil {
+		return nil, err
+	}
+	c := &tokenCollector{tokens: map[string]bool{}}
+	ast.Walk(&tree.Node, c)
+	return c.tokens, nil
+}
+
+type tokenCollector struct{ tokens map[string]bool }
+
+func (c *tokenCollector) Visit(node *ast.Node) {
+	if id, ok := (*node).(*ast.IdentifierNode); ok && statTokens[id.Value] {
+		c.tokens[id.Value] = true
+	}
+}
+
 func LinearToExpression(weights map[string]float64) string {
 	var parts []string
 	for _, t := range exprTerms {

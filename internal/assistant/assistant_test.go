@@ -68,6 +68,35 @@ func TestGeminiToolCallsWithoutIndex(t *testing.T) {
 	}
 }
 
+func TestStreamChatUsesMaxOutputTokens(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			MaxTokens int `json:"max_tokens"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.MaxTokens != maxOutputTokens {
+			t.Errorf("max_tokens = %d, want %d", body.MaxTokens, maxOutputTokens)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	old := googleBaseURL
+	googleBaseURL = srv.URL
+	defer func() { googleBaseURL = old }()
+
+	msg, err := streamChat(context.Background(), Settings{Model: "m"}, "key", nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.Content != "ok" {
+		t.Fatalf("content %q", msg.Content)
+	}
+}
+
 func TestRunToolLoop(t *testing.T) {
 	requests := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

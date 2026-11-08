@@ -88,8 +88,8 @@ func (a *App) GetAssistantHistory() AssistantHistoryState {
 func limitHistoryForStorage(history []assistant.Message, max int) []assistant.Message {
 	history = trimAssistantHistory(history, max)
 	for i := range history {
-		if history[i].Role == "tool" && len(history[i].Content) > 8192 {
-			history[i].Content = history[i].Content[:8192] + "…"
+		if history[i].Role == "tool" && len(history[i].Content) > 16000 {
+			history[i].Content = history[i].Content[:16000] + "…"
 		}
 	}
 	return history

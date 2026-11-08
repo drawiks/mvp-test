@@ -514,6 +514,24 @@ func TestLetScopeAndReservedNames(t *testing.T) {
 	}
 }
 
+func TestUsedTokens(t *testing.T) {
+	got, err := UsedTokens("let core = kills * 2; core + assists + max(deaths, 1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, token := range []string{"kills", "assists", "deaths"} {
+		if !got[token] {
+			t.Errorf("%s missing", token)
+		}
+	}
+	if got["core"] {
+		t.Fatal("local variable must not be a base token")
+	}
+	if len(got) != 3 {
+		t.Fatalf("unexpected tokens: %v", got)
+	}
+}
+
 func TestLetNotLinear(t *testing.T) {
 	expr := "let core = kills * 2; core + assists"
 	if _, ok := ExpressionToWeights(expr); ok {

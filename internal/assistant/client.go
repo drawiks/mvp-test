@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+const maxOutputTokens = 8192
+
 type toolDefinition struct {
 	Type     string          `json:"type"`
 	Function toolFunctionDef `json:"function"`
@@ -129,7 +131,7 @@ func streamChat(ctx context.Context, settings Settings, apiKey string, messages 
 		Tools:       defs,
 		ToolChoice:  "auto",
 		Temperature: settings.Temperature,
-		MaxTokens:   1024,
+		MaxTokens:   maxOutputTokens,
 		Stream:      true,
 	})
 	if err != nil {

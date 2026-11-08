@@ -269,6 +269,38 @@ func TestAssistantActionRefusesExplicitBuiltinUpdate(t *testing.T) {
 	}
 }
 
+func TestAssistantActionRejectsTokenRemoval(t *testing.T) {
+	a := fixture(t)
+	a.assistantSettings = assistant.DefaultSettings()
+	a.store.Upsert(formula.Preset{ID: "user-p", Name: "User formula", Kind: "expression", Expression: "kills + assists + deaths"})
+	a.store.SetActive("user-p")
+
+	out, err := a.stageAssistantFormulaChange(map[string]any{"expression": "kills + assists"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, ok := out.(map[string]any)
+	if !ok || result["status"] != "invalid" {
+		t.Fatalf("result %#v", out)
+	}
+	removed, _ := result["removed_tokens"].([]string)
+	if len(removed) != 1 || removed[0] != "deaths" {
+		t.Fatalf("removed %v", removed)
+	}
+	if a.assistantProposal != nil {
+		t.Fatal("proposal must not be created")
+	}
+
+	if _, err := a.stageAssistantFormulaChange(map[string]any{
+		"expression": "kills + assists", "allow_token_removal": true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if a.assistantProposal == nil {
+		t.Fatal("explicit removal request must be allowed")
+	}
+}
+
 func TestAssistantMvpPodium(t *testing.T) {
 	a := fixture(t)
 	a.assistantSettings = assistant.DefaultSettings()
@@ -499,6 +531,19 @@ func TestTrimHistoryByBudget(t *testing.T) {
 	}
 	if len(got[len(got)-1].Content) > 2100 {
 		t.Fatalf("tool result not truncated: %d", len(got[len(got)-1].Content))
+	}
+}
+
+func TestHistoryStorageKeepsLongToolResults(t *testing.T) {
+	history := []assistant.Message{{Role: "tool", Content: strings.Repeat("x", 15000)}}
+	got := limitHistoryForStorage(history, 10)
+	if len(got[0].Content) != 15000 {
+		t.Fatalf("tool result truncated to %d", len(got[0].Content))
+	}
+	tooLong := []assistant.Message{{Role: "tool", Content: strings.Repeat("x", 17000)}}
+	got = limitHistoryForStorage(tooLong, 10)
+	if len(got[0].Content) > 16010 {
+		t.Fatalf("oversized tool result kept: %d", len(got[0].Content))
 	}
 }
 

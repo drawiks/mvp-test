@@ -12,7 +12,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-const assistantHistoryBudgetChars = 12000
+const assistantHistoryBudgetChars = 40000
 
 type AssistantSettings struct {
 	Model           string  `json:"model"`

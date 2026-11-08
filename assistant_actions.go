@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"mvp/internal/formula"
@@ -93,6 +94,20 @@ func (a *App) stageAssistantFormulaChange(args map[string]any) (any, error) {
 	current := a.GetActiveFormulaExpression()
 	if finalMode == "update" {
 		current = presetExpression(target)
+	}
+	if finalMode == "update" && !boolArg(args, "allow_token_removal") {
+		removed, err := removedTokens(current, expression)
+		if err != nil {
+			return nil, err
+		}
+		if len(removed) > 0 {
+			return map[string]any{
+				"status":         "invalid",
+				"error":          "нельзя удалять токены без прямой просьбы пользователя",
+				"removed_tokens": removed,
+				"hint":           "Сохрани все токены текущей формулы. Если пользователь явно попросил удалить токены, вызови инструмент с allow_token_removal=true.",
+			}, nil
+		}
 	}
 	diff := a.DiffFormula(current, expression)
 	proposal := &AssistantProposal{
@@ -208,4 +223,23 @@ func presetExpression(preset formula.Preset) string {
 
 func isBuiltinPreset(id string) bool {
 	return id == "standard_v2" || id == "tutorial"
+}
+
+func removedTokens(current, proposed string) ([]string, error) {
+	oldTokens, err := formula.UsedTokens(current)
+	if err != nil {
+		return nil, err
+	}
+	newTokens, err := formula.UsedTokens(proposed)
+	if err != nil {
+		return nil, err
+	}
+	removed := make([]string, 0)
+	for token := range oldTokens {
+		if !newTokens[token] {
+			removed = append(removed, token)
+		}
+	}
+	sort.Strings(removed)
+	return removed, nil
 }
