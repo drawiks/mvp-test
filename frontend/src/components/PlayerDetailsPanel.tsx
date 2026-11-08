@@ -7,9 +7,13 @@ import HeroIcon from "@/components/HeroIcon";
 import { heroName } from "@/lib/heroNames";
 import { WEIGHT_META } from "@/lib/weights";
 
-const PLAYER_TOKENS = WEIGHT_META.filter((token) => token.key !== "match_duration" && token.key !== "hero");
+const PLAYER_TOKENS = [
+  { key: "hero" },
+  ...WEIGHT_META.filter((token) => token.key !== "match_duration" && token.key !== "hero"),
+];
 
 function rawValue(hero: main.PlayerView, key: string): string {
+  if (key === "hero") return hero.Hero || "—";
   if (key === "networth") return String(hero.Networth);
   const value = hero.Stats?.[key];
   return value === undefined ? "—" : String(value);
@@ -68,7 +72,7 @@ export default function PlayerDetailsPanel({ views }: { views: main.PlayerView[]
                   <td className="truncate px-2 py-1 font-mono text-muted-foreground" title={token.key}>
                     {token.key}
                   </td>
-                  <td className="px-2 py-1 text-right font-mono tabular-nums text-foreground">
+                  <td className="truncate px-2 py-1 text-right font-mono tabular-nums text-foreground" title={rawValue(hero, token.key)}>
                     {rawValue(hero, token.key)}
                   </td>
                 </tr>
