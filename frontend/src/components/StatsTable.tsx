@@ -46,7 +46,6 @@ const STAT_COLS: Col[] = [
   { kind: "stat", header: "Silence", stat: "silence_duration", align: "center", render: (_v, s) => s.toFixed(1) },
   { kind: "stat", header: "Break", stat: "break_duration", align: "center", render: (_v, s) => s.toFixed(1) },
   { kind: "stat", header: "Disarm", stat: "disarm_duration", align: "center", render: (_v, s) => s.toFixed(1) },
-  { kind: "stat", header: "HealVal", stat: "heal_value", align: "center", render: (_v, s) => fmtNum(s) },
   { kind: "stat", header: "Creeps", stat: "creeps_stacked", align: "center" },
 ];
 

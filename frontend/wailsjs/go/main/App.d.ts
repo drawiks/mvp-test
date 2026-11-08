@@ -41,10 +41,6 @@ export function GetGoogleKeys():Promise<Array<main.GoogleKeyInfo>>;
 
 export function GetAssistantSettings():Promise<main.AssistantSettings>;
 
-export function GetParserEngine():Promise<string>;
-
-export function GetParserURL():Promise<string>;
-
 export function HeroImageURL(arg1:string):Promise<string>;
 
 export function ImportPreset(arg1:string):Promise<formula.Preset>;
@@ -74,10 +70,6 @@ export function AddGoogleKey(arg1:string):Promise<void>;
 export function RemoveGoogleKey(arg1:number):Promise<void>;
 
 export function SetActivePreset(arg1:string):Promise<void>;
-
-export function SetParserEngine(arg1:string):Promise<void>;
-
-export function SetParserURL(arg1:string):Promise<void>;
 
 export function TestAssistantConnection():Promise<void>;
 

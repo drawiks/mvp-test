@@ -21,7 +21,7 @@ import { heroName } from "@/lib/heroNames";
 import { cn } from "@/lib/utils";
 
 const FORMULA_HINT =
-  "let name = выражение; · if/elif/else · + − * / ** · сравнения · логика && || ! · max/min/abs/round";
+  "let name = выражение; · if/elif/else · hero == \"slug\" · + − * / ** · сравнения · логика && || ! · max/min/abs/round";
 const EDITABLE = WEIGHT_META.filter((m) => m.key !== "networth" && !m.chipOnly);
 const GROUPS = [...new Set(EDITABLE.map((m) => m.group))].map((g) => ({ group: g, items: EDITABLE.filter((m) => m.group === g) }));
 

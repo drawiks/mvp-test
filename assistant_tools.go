@@ -343,7 +343,7 @@ func (a *App) toolExplain(expression string, playerID int) (any, error) {
 	if player == nil {
 		return nil, fmt.Errorf("игрок %d не найден", playerID)
 	}
-	rows, err := formula.Breakdown(expression, mvp.PlayerVars(*player, float64(result.DurationSec)))
+	rows, err := formula.BreakdownEnv(expression, mvp.PlayerEnv(*player, float64(result.DurationSec)))
 	if err != nil {
 		return nil, err
 	}
@@ -511,10 +511,10 @@ var tokenUnits = map[string]string{
 	"fear_duration": "seconds", "roots_duration": "seconds", "leash_duration": "seconds",
 	"trap_duration": "seconds", "taunt_duration": "seconds", "silence_duration": "seconds",
 	"break_duration": "seconds", "disarm_duration": "seconds",
-	"heal_duration": "seconds", "heal_value": "HP", "time_dead": "seconds",
+	"time_dead":      "seconds",
 	"creeps_stacked": "count", "wisdoms_captured": "count", "watchers_captured": "count",
 	"lotuses_gathered": "count", "courier_kills": "count", "match_duration": "seconds",
-	"position": "1-5",
+	"position": "1-5", "hero": "slug",
 }
 
 func (a *App) assistantResult() (*model.Result, error) {

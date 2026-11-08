@@ -30,10 +30,8 @@ export const WEIGHT_META: WeightMeta[] = [
   { key: "buff_stats_duration", label: "Стат-баффы (сек)", group: "Баффы", unit: "×" },
   { key: "invisibility_duration", label: "Невидимость (сек)", group: "Баффы", unit: "×" },
   { key: "buff_haste_duration", label: "Хаста (сек)", group: "Баффы", unit: "×" },
-  { key: "healing", label: "Мгновенный хил", group: "Баффы", unit: "÷" },
+  { key: "healing", label: "Общий хил", group: "Баффы", unit: "÷" },
   { key: "mana_restored", label: "Мана союзникам (manta)", group: "Баффы", unit: "÷" },
-  { key: "heal_duration", label: "HoT-хил (сек)", group: "Баффы", unit: "×" },
-  { key: "heal_value", label: "HoT-хил (HP)", group: "Баффы", unit: "÷" },
   { key: "last_hits", label: "Ластхиты", group: "Фарм", unit: "÷" },
   { key: "gpm", label: "GPM", group: "Фарм", unit: "÷" },
   { key: "xpm", label: "XPM", group: "Фарм", unit: "÷" },
@@ -52,6 +50,7 @@ export const WEIGHT_META: WeightMeta[] = [
   { key: "rune_pickups", label: "Руны", group: "Утилити", unit: "×" },
   { key: "time_dead", label: "В таверне (сек)", group: "Утилити", unit: "÷" },
   { key: "position", label: "Позиция (1–5)", group: "Роль", unit: "×", chipOnly: true },
+  { key: "hero", label: "Герой (slug)", group: "Роль", unit: "×", chipOnly: true },
 ];
 
 export const WEIGHT_TOKEN_GROUPS = ["Бой", "Дебаффы", "Баффы", "Фарм", "Саппорт", "Утилити", "Роль"] as const;

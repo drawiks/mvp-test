@@ -20,18 +20,14 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-const parserURLDefault = "http://localhost:5600"
-
 type App struct {
-	ctx          context.Context
-	store        *formula.Store
-	configPath   string
-	parserURL    string
-	parserEngine string
-	result       *model.Result
-	resultMu     sync.Mutex
-	parseCancel  context.CancelFunc
-	parseMu      sync.Mutex
+	ctx         context.Context
+	store       *formula.Store
+	configPath  string
+	result      *model.Result
+	resultMu    sync.Mutex
+	parseCancel context.CancelFunc
+	parseMu     sync.Mutex
 
 	updateMu      sync.Mutex
 	updateRelease *updater.Release
@@ -53,8 +49,6 @@ type App struct {
 }
 
 type appConfig struct {
-	ParserURL     string             `json:"parser_url"`
-	ParserEngine  string             `json:"parser_engine"`
 	Assistant     assistant.Settings `json:"assistant"`
 	GoogleKeysEnc []string           `json:"google_keys_enc,omitempty"`
 }
@@ -81,21 +75,11 @@ func (a *App) startup(ctx context.Context) {
 		a.store.SetActive("standard_v2")
 		a.store.Save()
 	}
-	cfg := appConfig{
-		ParserURL:    parserURLDefault,
-		ParserEngine: parse.EngineOdota,
-		Assistant:    assistant.DefaultSettings(),
-	}
+	cfg := appConfig{Assistant: assistant.DefaultSettings()}
 	if data, err := os.ReadFile(a.configPath); err == nil {
 		if err := json.Unmarshal(data, &cfg); err != nil {
-			cfg = appConfig{ParserURL: parserURLDefault, ParserEngine: parse.EngineOdota, Assistant: assistant.DefaultSettings()}
+			cfg = appConfig{Assistant: assistant.DefaultSettings()}
 		}
-	}
-	if cfg.ParserURL == "" {
-		cfg.ParserURL = parserURLDefault
-	}
-	if cfg.ParserEngine != parse.EngineManta {
-		cfg.ParserEngine = parse.EngineOdota
 	}
 	validModel := false
 	for _, id := range assistant.GoogleFreeModels {
@@ -113,8 +97,6 @@ func (a *App) startup(ctx context.Context) {
 	if cfg.Assistant.Temperature <= 0 || cfg.Assistant.Temperature > 2 {
 		cfg.Assistant.Temperature = 0.2
 	}
-	a.parserURL = cfg.ParserURL
-	a.parserEngine = cfg.ParserEngine
 	a.assistantSettings = cfg.Assistant
 	for _, enc := range cfg.GoogleKeysEnc {
 		key, derr := assistant.DecryptSecret(enc)
@@ -148,11 +130,9 @@ func (a *App) ParseReplay(path string) error {
 	runtime.EventsEmit(a.ctx, "parseStart", map[string]any{"path": path})
 	runtime.EventsEmit(a.ctx, "matchInfo", nil)
 
-	parserURL, parserEngine := a.parserURL, a.parserEngine
-
 	go func() {
 		defer cancel()
-		result, err := parse.ParseReplay(ctx, path, parserURL, parserEngine)
+		result, err := parse.ParseReplay(ctx, path)
 		if err != nil {
 			runtime.EventsEmit(a.ctx, "parseDone", map[string]any{"ok": false, "error": err.Error()})
 			return
@@ -179,7 +159,7 @@ func (a *App) ChooseReplay() {
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Выберите файл реплея",
 		Filters: []runtime.FileFilter{
-			{DisplayName: "Реплеи (*.dem, *.json, *.ndjson, *.bz2, *.zst)", Pattern: "*.dem;*.json;*.ndjson;*.bz2;*.zst;*.zip"},
+			{DisplayName: "Реплеи (*.dem, *.json, *.bz2, *.zst)", Pattern: "*.dem;*.json;*.bz2;*.zst"},
 			{DisplayName: "Все файлы", Pattern: "*"},
 		},
 	})
@@ -289,38 +269,12 @@ func (a *App) InstallUpdate() error {
 	return nil
 }
 
-func (a *App) GetParserURL() string { return a.parserURL }
-
-func (a *App) SetParserURL(url string) error {
-	url = strings.TrimSpace(url)
-	if url == "" {
-		url = parserURLDefault
-	}
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-		return errors.New("URL должен начинаться с http:// или https://")
-	}
-	a.parserURL = strings.TrimSuffix(url, "/")
-	return a.saveConfig()
-}
-
-func (a *App) GetParserEngine() string { return a.parserEngine }
-
-func (a *App) SetParserEngine(engine string) error {
-	if engine != parse.EngineOdota && engine != parse.EngineManta {
-		return errors.New("неизвестный движок парсинга: " + engine)
-	}
-	a.parserEngine = engine
-	return a.saveConfig()
-}
-
 func (a *App) saveConfig() error {
 	googleKeysEnc, err := a.googleKeysEncrypted()
 	if err != nil {
 		return err
 	}
 	data, err := json.Marshal(appConfig{
-		ParserURL:     a.parserURL,
-		ParserEngine:  a.parserEngine,
 		Assistant:     a.assistantSettings,
 		GoogleKeysEnc: googleKeysEnc,
 	})
@@ -451,7 +405,7 @@ func (a *App) EvalBreakdown(expression string, playerID int) ([]formula.Breakdow
 	if player == nil {
 		return nil, errors.New("игрок не найден")
 	}
-	return formula.Breakdown(expression, mvp.PlayerVars(*player, float64(a.result.DurationSec)))
+	return formula.BreakdownEnv(expression, mvp.PlayerEnv(*player, float64(a.result.DurationSec)))
 }
 
 // ValidateExpression checks a formula expression without needing a loaded

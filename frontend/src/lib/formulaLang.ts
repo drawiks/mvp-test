@@ -16,6 +16,7 @@ const formulaParser: StreamParser<object> = {
   token(stream) {
     if (stream.eatSpace()) return null;
     if (stream.match(/#[^\n]*/) || stream.match(/\/\/[^\n]*/)) return "comment";
+    if (stream.match(/"(?:[^"\\]|\\.)*"/)) return "string";
     if (stream.match(/\d+(\.\d+)?/)) return "number";
     const start = stream.pos;
     if (stream.match(/[a-zA-Z_][a-zA-Z0-9_]*/)) {
@@ -39,6 +40,7 @@ export const formulaLanguage = new LanguageSupport(StreamLanguage.define(formula
 
 export const formulaHighlightStyle = HighlightStyle.define([
   { tag: tags.comment, color: "#6e7681", fontStyle: "italic" },
+  { tag: tags.string, color: "#a5d6ff" },
   { tag: tags.number, color: "#e3b341" },
   { tag: tags.keyword, color: "#f5c542" },
   { tag: tags.bool, color: "#f5c542" },

@@ -1,6 +1,6 @@
 /**
- * Hero display names keyed by the Dota 2 API name (the field odota/parser
- * emits in "players[].hero"). Sourced from opendota /api/heroes
+ * Hero display names keyed by the Dota 2 API name (the field manta emits in
+ * "players[].hero"). Sourced from opendota /api/heroes
  * (localized_name), 127 heroes.
  */
 
@@ -141,10 +141,9 @@ export function normalizeHeroName(hero: string): string {
     .toLowerCase()
     .replace(/^npc_dota_hero_/, "")
     .replace(/[^a-z0-9_]/g, "");
-  // The odota parser derives the "hero" string from the in-game unit name
-  // (snake_case of CDOTA_Unit_Hero_*), which differs from the Valve/opendota
-  // api slug for a few legacy heroes. Normalize those so CDN icons and this
-  // map line up. (Backend also canonicalizes by hero_id; this is the fallback.)
+  // manta emits the in-game unit name as snake_case, which differs from the
+  // Valve/opendota api slug for a few legacy heroes. Normalize those so CDN
+  // icons and this map line up.
   if (HERO_ALIASES[key]) return HERO_ALIASES[key];
   return key;
 }

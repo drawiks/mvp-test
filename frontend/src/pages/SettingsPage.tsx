@@ -6,7 +6,6 @@ import type { main } from "../../wailsjs/go/models";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -21,8 +20,6 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 }
 
 export default function SettingsPage() {
-  const [parserEngine, setParserEngine] = useState("odota");
-  const [parserURL, setParserURL] = useState("");
   const [settings, setSettings] = useState<main.AssistantSettings | null>(null);
   const [googleKeys, setGoogleKeys] = useState<main.GoogleKeyInfo[]>([]);
   const [newGoogleKey, setNewGoogleKey] = useState("");
@@ -30,14 +27,10 @@ export default function SettingsPage() {
   const [modelCount, setModelCount] = useState<number | null>(null);
 
   const load = async () => {
-    const [engine, url, assistant, gkeys] = await Promise.all([
-      Bindings.GetParserEngine(),
-      Bindings.GetParserURL(),
+    const [assistant, gkeys] = await Promise.all([
       Bindings.GetAssistantSettings(),
       Bindings.GetGoogleKeys(),
     ]);
-    setParserEngine(engine);
-    setParserURL(url);
     setSettings(assistant);
     setGoogleKeys(gkeys);
   };
@@ -45,16 +38,6 @@ export default function SettingsPage() {
   useEffect(() => {
     void load().catch((e) => toast.error(String(e)));
   }, []);
-
-  const saveParser = async () => {
-    try {
-      await Bindings.SetParserEngine(parserEngine);
-      if (parserEngine !== "manta") await Bindings.SetParserURL(parserURL);
-      toast.success("Настройки парсера сохранены");
-    } catch (e) {
-      toast.error(String(e));
-    }
-  };
 
   const saveAssistant = async () => {
     if (!settings) return;
@@ -130,35 +113,6 @@ export default function SettingsPage() {
         <h1 className="flex items-center gap-2 text-lg font-bold">
           <SettingsIcon className="size-5" /> Настройки
         </h1>
-
-        <Section title="Парсер реплеев" icon={<RefreshCw className="size-4" />}>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="space-y-1">
-              <label className="label-caps">Движок</label>
-              <Select value={parserEngine} onValueChange={setParserEngine}>
-                <SelectTrigger className="h-8 w-56"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="odota">odota-cli (HTTP)</SelectItem>
-                  <SelectItem value="manta">manta-cli (локально)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-72 flex-1 space-y-1">
-              <label className="label-caps">URL парсера</label>
-              <Input
-                value={parserURL}
-                onChange={(e) => setParserURL(e.target.value)}
-                disabled={parserEngine === "manta"}
-                placeholder={parserEngine === "manta" ? "не используется" : "http://localhost:5600"}
-                className="h-8"
-              />
-            </div>
-            <Button size="sm" onClick={() => void saveParser()}>Сохранить</Button>
-          </div>
-          {parserEngine === "manta" && (
-            <p className="mt-2 text-[11px] text-muted-foreground">.dem парсится локально, Docker не нужен.</p>
-          )}
-        </Section>
 
         <Section title="Google AI Studio" icon={<KeyRound className="size-4" />}>
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-background/50 p-2 text-xs">

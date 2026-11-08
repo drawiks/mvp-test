@@ -43,8 +43,6 @@ type Weights struct {
 	SilenceDuration  float64
 	BreakDuration    float64
 	DisarmDuration   float64
-	HealDuration     float64
-	HealValue        float64
 	CreepsStacked    float64
 	TimeDead         float64
 	WisdomsCaptured  float64
@@ -100,8 +98,6 @@ var weightKeys = map[string]weightField{
 	"silence_duration":      {"SilenceDuration", "silence_duration", func(p *model.Player) float64 { return p.SilenceDuration }},
 	"break_duration":        {"BreakDuration", "break_duration", func(p *model.Player) float64 { return p.BreakDuration }},
 	"disarm_duration":       {"DisarmDuration", "disarm_duration", func(p *model.Player) float64 { return p.DisarmDuration }},
-	"heal_duration":         {"HealDuration", "heal_duration", func(p *model.Player) float64 { return p.HealDuration }},
-	"heal_value":            {"HealValue", "heal_value", func(p *model.Player) float64 { return p.HealValue }},
 	"time_dead":             {"TimeDead", "time_dead", func(p *model.Player) float64 { return p.TimeDead }},
 	"creeps_stacked":        {"CreepsStacked", "creeps_stacked", func(p *model.Player) float64 { return float64(p.CreepsStacked) }},
 	"wisdoms_captured":      {"WisdomsCaptured", "wisdoms_captured", func(p *model.Player) float64 { return float64(p.WisdomsCaptured) }},
@@ -187,10 +183,6 @@ func (w *Weights) value(key string) float64 {
 		return w.BreakDuration
 	case "DisarmDuration":
 		return w.DisarmDuration
-	case "HealDuration":
-		return w.HealDuration
-	case "HealValue":
-		return w.HealValue
 	case "CreepsStacked":
 		return w.CreepsStacked
 	case "TimeDead":
@@ -291,10 +283,6 @@ func WeightsFromMapping(mapping map[string]float64) Weights {
 			w.BreakDuration = v
 		case "DisarmDuration":
 			w.DisarmDuration = v
-		case "HealDuration":
-			w.HealDuration = v
-		case "HealValue":
-			w.HealValue = v
 		case "CreepsStacked":
 			w.CreepsStacked = v
 		case "TimeDead":
@@ -335,13 +323,23 @@ func PlayerVars(p model.Player, duration float64) map[string]float64 {
 		"leash_duration": p.LeashDuration, "trap_duration": p.TrapDuration,
 		"taunt_duration": p.TauntDuration, "silence_duration": p.SilenceDuration,
 		"break_duration": p.BreakDuration, "disarm_duration": p.DisarmDuration,
-		"heal_duration": p.HealDuration, "heal_value": p.HealValue,
 		"time_dead":        p.TimeDead,
 		"wisdoms_captured": float64(p.WisdomsCaptured), "watchers_captured": float64(p.WatchersCaptured),
 		"lotuses_gathered": float64(p.LotusesGathered), "courier_kills": float64(p.CourierKills),
 		"match_duration": duration,
 		"position":       float64(p.Position),
 	}
+}
+
+// PlayerEnv returns formula environment values for one player, including the
+// hero slug used by hero-specific conditions.
+func PlayerEnv(p model.Player, duration float64) map[string]any {
+	env := make(map[string]any, len(weightKeys)+2)
+	for k, v := range PlayerVars(p, duration) {
+		env[k] = v
+	}
+	env["hero"] = p.Hero
+	return env
 }
 
 func ScoreBreakdown(p model.Player, w Weights) map[string]float64 {
@@ -372,7 +370,7 @@ func ComputeScoreAt(p model.Player, duration float64, preset formula.Preset) (fl
 		if preset.Expression == "" {
 			return 0, nil
 		}
-		return formula.Eval(preset.Expression, PlayerVars(p, duration))
+		return formula.EvalEnv(preset.Expression, PlayerEnv(p, duration))
 	}
 	w := PresetWeights(preset)
 	total := 0.0

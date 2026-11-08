@@ -89,14 +89,6 @@ func TestBuildViewsTopScores(t *testing.T) {
 	}
 }
 
-func TestAppParserURLRoundtrip(t *testing.T) {
-	a := &App{}
-	if a.GetParserURL() != "" {
-		t.Fatal("expected empty before startup")
-	}
-	_ = a
-}
-
 func TestAssistantTools(t *testing.T) {
 	a := fixture(t)
 	a.assistantSettings = assistant.DefaultSettings()
@@ -400,7 +392,7 @@ func TestAssistantTokenCatalogMetadata(t *testing.T) {
 	}
 	for token, want := range map[string]string{
 		"time_dead":           "таверн",
-		"heal_duration":       "союзник",
+		"hero":                "slug",
 		"buff_stats_duration": "союзник",
 		"purge_count":         "развеиван",
 		"buff_duration":       "всех баффов",
@@ -576,30 +568,6 @@ func TestUpdateMethodsWhenDev(t *testing.T) {
 	}
 	if err := a.InstallUpdate(); err == nil {
 		t.Fatal("want error without a checked release")
-	}
-}
-
-func TestSetParserEngine(t *testing.T) {
-	a := &App{configPath: filepath.Join(t.TempDir(), "config.json"), parserURL: parserURLDefault}
-	if err := a.SetParserEngine("bogus"); err == nil {
-		t.Fatal("want error for unknown engine")
-	}
-	if err := a.SetParserEngine("manta"); err != nil {
-		t.Fatal(err)
-	}
-	if a.GetParserEngine() != "manta" {
-		t.Fatalf("engine %q", a.GetParserEngine())
-	}
-	data, err := os.ReadFile(a.configPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var cfg appConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		t.Fatal(err)
-	}
-	if cfg.ParserEngine != "manta" || cfg.ParserURL != parserURLDefault {
-		t.Fatalf("config %+v", cfg)
 	}
 }
 

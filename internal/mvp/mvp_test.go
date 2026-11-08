@@ -344,6 +344,33 @@ func TestPlayerVarsPosition(t *testing.T) {
 	}
 }
 
+func TestPlayerEnvHero(t *testing.T) {
+	env := PlayerEnv(model.Player{Hero: "templar_assassin", Kills: 10}, 0)
+	if env["hero"] != "templar_assassin" || env["kills"] != float64(10) {
+		t.Fatalf("env %+v", env)
+	}
+}
+
+func TestComputeScoreWithHero(t *testing.T) {
+	p := model.Player{Kills: 10, Hero: "templar_assassin"}
+	preset := formula.Preset{ID: "e", Name: "E", Kind: "expression", Expression: `if hero == "templar_assassin" { kills * 2 } else { kills }`}
+	got, err := ComputeScoreAt(p, 0, preset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(got-20) > 1e-9 {
+		t.Fatalf("got %v want 20", got)
+	}
+	p.Hero = "rubick"
+	got, err = ComputeScoreAt(p, 0, preset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(got-10) > 1e-9 {
+		t.Fatalf("got %v want 10", got)
+	}
+}
+
 func TestComputeScoreWithPositionIf(t *testing.T) {
 	p := model.Player{Kills: 10, Position: 1}
 	preset := formula.Preset{ID: "e", Name: "E", Kind: "expression", Expression: "if position == 1 { kills * 2 } else { kills }"}

@@ -146,7 +146,7 @@ func TestParseReplayJSON(t *testing.T) {
 	if err := os.WriteFile(tmp, rawFixture(t), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r, err := ParseReplay(context.Background(), tmp, "http://localhost:5600", EngineOdota)
+	r, err := ParseReplay(context.Background(), tmp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestParseReplayJSON(t *testing.T) {
 
 func TestParseReplayBzip2(t *testing.T) {
 	compressed := filepath.Join("..", "testdata", "match.json.bz2")
-	r, err := ParseReplay(context.Background(), compressed, "http://localhost:5600", EngineOdota)
+	r, err := ParseReplay(context.Background(), compressed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestParseReplayZstd(t *testing.T) {
 	compressed := filepath.Join(dir, "match.json.zst")
 	writeZstd(t, compressed, rawFixture(t))
 
-	r, err := ParseReplay(context.Background(), compressed, "http://localhost:5600", EngineOdota)
+	r, err := ParseReplay(context.Background(), compressed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,32 +181,23 @@ func TestParseReplayZstd(t *testing.T) {
 }
 
 func TestParseReplayMissingFile(t *testing.T) {
-	if _, err := ParseReplay(context.Background(), filepath.Join(t.TempDir(), "nope.dem"), "", EngineOdota); err == nil {
-		t.Fatal("want error")
-	}
-}
-
-func TestParseReplayMantaMissingFile(t *testing.T) {
-	if _, err := ParseReplay(context.Background(), filepath.Join(t.TempDir(), "nope.dem"), "", EngineManta); err == nil {
+	if _, err := ParseReplay(context.Background(), filepath.Join(t.TempDir(), "nope.dem")); err == nil {
 		t.Fatal("want error")
 	}
 }
 
 func TestFromManta(t *testing.T) {
-	r, err := fromManta(&manta.Match{
+	r := fromManta(&manta.Match{
 		MatchID: 42, DurationSec: 60, RadiantWin: true,
 		Players: []manta.Player{{
 			SteamID: 1, PlayerID: 0, HeroID: 39, Hero: "queen_of_pain",
 			Team: "radiant", Name: "n", Position: 2, Lane: "mid",
-			GoldLost: 456, ManaRestored: 123,
+			Healing: 100, GoldLost: 456, ManaRestored: 123,
 			BuffSources: []manta.SourceEntry{{Inflictor: "x", Category: "purge", Count: 4}},
 		}},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	p := r.Players[0]
-	if r.MatchID != 42 || p.Hero != "queenofpain" || p.Purge != 4 || p.Position != 2 {
+	if r.MatchID != 42 || p.Hero != "queenofpain" || p.Purge != 4 || p.Position != 2 || p.Healing != 100 {
 		t.Fatalf("match %d player %+v", r.MatchID, p)
 	}
 	if p.GoldLost != 456 || p.ManaRestored != 123 {
@@ -235,7 +226,7 @@ func TestMantaReplaySmoke(t *testing.T) {
 	if path == "" {
 		t.Skip("set MVP_MANTA_REPLAY to a .dem file")
 	}
-	r, err := ParseReplay(context.Background(), path, "", EngineManta)
+	r, err := ParseReplay(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +272,7 @@ func TestCanonicalHero(t *testing.T) {
 		{1, "npc_dota_hero_antimage", "antimage"},
 	}
 	for _, c := range cases {
-		got := canonicalHero(c.id, c.raw)
+		got := canonicalHero(c.raw)
 		if got != c.want {
 			t.Errorf("canonicalHero(%d, %q) = %q, want %q", c.id, c.raw, got, c.want)
 		}

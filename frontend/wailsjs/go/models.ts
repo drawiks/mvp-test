@@ -261,8 +261,6 @@ export namespace main {
 	    SilenceDuration: number;
 	    BreakDuration: number;
 	    DisarmDuration: number;
-	    HealDuration: number;
-	    HealValue: number;
 	    WisdomsCaptured: number;
 	    WatchersCaptured: number;
 	    LotusesGathered: number;
@@ -326,8 +324,6 @@ export namespace main {
 	        this.SilenceDuration = source["SilenceDuration"];
 	        this.BreakDuration = source["BreakDuration"];
 	        this.DisarmDuration = source["DisarmDuration"];
-	        this.HealDuration = source["HealDuration"];
-	        this.HealValue = source["HealValue"];
 	        this.WisdomsCaptured = source["WisdomsCaptured"];
 	        this.WatchersCaptured = source["WatchersCaptured"];
 	        this.LotusesGathered = source["LotusesGathered"];

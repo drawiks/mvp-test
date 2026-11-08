@@ -12,46 +12,22 @@ import (
 	"strings"
 
 	"github.com/drawiks/manta-cli"
-	"github.com/drawiks/odota-cli/parser"
 	"github.com/klauspost/compress/zstd"
 	"mvp/internal/model"
 )
 
-// Parser engines selectable in the app. Local JSON/NDJSON files always use the
-// odota-cli aggregator; the engine only changes how .dem replays are parsed.
-const (
-	EngineOdota = "odota"
-	EngineManta = "manta"
-)
-
 // Errors surfaced to the UI in user-facing messages.
 var (
-	ErrReplay     = errors.New("не удалось прочитать файл реплея")
-	ErrParse      = errors.New("не удалось разобрать реплей")
-	ErrHTTP       = errors.New("не удалось связаться с парсером")
-	ErrNotJSON    = errors.New("файл не является реплеем: некорректный JSON")
-	ErrNoPlayers  = errors.New("некорректный реплей: нет поля players")
-	ErrParserDown = errors.New("парсер не отвечает. Запустите odota/parser на localhost:5600")
+	ErrReplay    = errors.New("не удалось прочитать файл реплея")
+	ErrParse     = errors.New("не удалось разобрать реплей")
+	ErrNotJSON   = errors.New("файл не является реплеем: некорректный JSON")
+	ErrNoPlayers = errors.New("некорректный реплей: нет поля players")
 )
 
 const (
 	bz2Header  = "BZh"
 	zstdHeader = "\x28\xb5\x2f\xfd\x00"
 )
-
-// slugByID maps hero ID -> valve/opendota api slug. The odota parser derives
-// the "hero" string from the in-game unit name (snake_case of the
-// CDOTA_Unit_Hero_* camelCase), which differs from the canonical api slug for
-// a few legacy heroes (e.g. "vengeful_spirit" vs "vengefulspirit",
-// "queen_of_pain" vs "queenofpain"). Canonicalizing by HeroID keeps icon URLs
-// and display names aligned with the Steam CDN / opendota names.
-var slugByID = func() map[int]string {
-	m := make(map[int]string, len(parser.HeroMap))
-	for key, id := range parser.HeroMap {
-		m[id] = strings.TrimPrefix(key, "npc_dota_hero_")
-	}
-	return m
-}()
 
 var heroAliases = map[string]string{
 	"anti_mage":       "antimage",
@@ -60,51 +36,24 @@ var heroAliases = map[string]string{
 	"doom":            "doom_bringer",
 }
 
-func canonicalHero(id int, raw string) string {
+func canonicalHero(raw string) string {
 	slug := strings.TrimPrefix(raw, "npc_dota_hero_")
-	if resolved, ok := slugByID[id]; ok {
-		slug = resolved
-	}
 	if alias, ok := heroAliases[slug]; ok {
 		return alias
 	}
 	return slug
 }
 
-// ReadAggregatedJSON maps an already-aggregated parser Match object into the
-// app model (i.e. the JSON that odota-cli prints after parsing).
+// ReadAggregatedJSON maps manta-cli's aggregated match JSON into the app model.
 func ReadAggregatedJSON(data []byte) (model.Result, error) {
-	var match parser.Match
+	var match manta.Match
 	if err := json.Unmarshal(bytes.TrimSpace(data), &match); err != nil {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrNotJSON, err)
 	}
 	if len(match.Players) == 0 && !hasPlayersField(data) {
 		return model.Result{}, ErrNoPlayers
 	}
-	result := FromMatch(&match)
-	applyManaRestored(&result, data)
-	return result, nil
-}
-
-// applyManaRestored copies manta's mana_restored extension, which odota-cli's
-// parser.Match does not declare.
-func applyManaRestored(result *model.Result, data []byte) {
-	var ext struct {
-		Players []struct {
-			PlayerID     int     `json:"player_id"`
-			ManaRestored float64 `json:"mana_restored"`
-		} `json:"players"`
-	}
-	if json.Unmarshal(bytes.TrimSpace(data), &ext) != nil {
-		return
-	}
-	mana := make(map[int]float64, len(ext.Players))
-	for _, p := range ext.Players {
-		mana[p.PlayerID] = p.ManaRestored
-	}
-	for i := range result.Players {
-		result.Players[i].ManaRestored = mana[result.Players[i].PlayerID]
-	}
+	return fromManta(&match), nil
 }
 
 func hasPlayersField(data []byte) bool {
@@ -116,82 +65,73 @@ func hasPlayersField(data []byte) bool {
 	return ok
 }
 
-// FromMatch maps an odota-cli aggregate into the app model, summing buff
-// sources into the save/purge/shield uptime fields.
-func FromMatch(m *parser.Match) model.Result {
+func fromManta(match *manta.Match) model.Result {
 	r := model.Result{
-		MatchID:     m.MatchID,
-		DurationSec: int64(m.DurationSec),
-		RadiantWin:  m.RadiantWin,
+		MatchID:     match.MatchID,
+		DurationSec: int64(match.DurationSec),
+		RadiantWin:  match.RadiantWin,
 	}
-	for _, p := range m.Players {
-		r.Players = append(r.Players, FromPlayer(p))
+	for _, p := range match.Players {
+		r.Players = append(r.Players, model.Player{
+			SteamID:              p.SteamID,
+			PlayerID:             p.PlayerID,
+			HeroID:               p.HeroID,
+			Hero:                 canonicalHero(p.Hero),
+			Team:                 p.Team,
+			Name:                 p.Name,
+			Position:             p.Position,
+			Lane:                 p.Lane,
+			Kills:                p.Kills,
+			Deaths:               p.Deaths,
+			Assists:              p.Assists,
+			Level:                p.Level,
+			LastHits:             p.LastHits,
+			Networth:             p.Networth,
+			GPM:                  p.GPM,
+			XPM:                  p.XPM,
+			Healing:              float64(p.Healing),
+			ManaRestored:         float64(p.ManaRestored),
+			HeroDamage:           p.HeroDamage,
+			DamageTaken:          p.DamageTaken,
+			TowerDamage:          p.TowerDamage,
+			TimeDead:             p.TimeDead,
+			StunDuration:         p.StunDuration,
+			GoldSpentWards:       p.GoldSpentWards,
+			GoldSpentSmoke:       p.GoldSpentSmoke,
+			GoldSpentDust:        p.GoldSpentDust,
+			GoldLost:             p.GoldLost,
+			CampsStacked:         p.CampsStacked,
+			CreepsStacked:        p.CreepsStacked,
+			RunePickups:          p.RunePickups,
+			FirstBlood:           p.FirstBlood,
+			BuffsDuration:        p.BuffDuration,
+			Save:                 sumCategory(p.BuffSources, "save"),
+			Purge:                sumCategory(p.BuffSources, "purge"),
+			ShieldUptime:         sumCategory(p.BuffSources, "shield"),
+			BuffStatsDuration:    sumCategory(p.BuffSources, "buff_stats"),
+			InvisibilityDuration: sumCategory(p.BuffSources, "invisibility"),
+			BuffHasteDuration:    sumCategory(p.BuffSources, "buff_haste"),
+
+			FearDuration:     p.FearDuration,
+			RootsDuration:    p.RootsDuration,
+			LeashDuration:    p.LeashDuration,
+			TrapDuration:     p.TrapDuration,
+			TauntDuration:    p.TauntDuration,
+			SilenceDuration:  p.SilenceDuration,
+			BreakDuration:    p.BreakDuration,
+			DisarmDuration:   p.DisarmDuration,
+			WisdomsCaptured:  p.WisdomsCaptured,
+			WatchersCaptured: p.WatchersCaptured,
+			LotusesGathered:  p.LotusesGathered,
+			CourierKills:     p.CourierKills,
+		})
 	}
 	return r
 }
 
-// FromPlayer maps a single parsed player, deriving save/purge/shield_uptime
-// from buff_sources categories.
-func FromPlayer(p parser.Player) model.Player {
-	return model.Player{
-		SteamID:              p.SteamID,
-		PlayerID:             p.PlayerID,
-		HeroID:               p.HeroID,
-		Hero:                 canonicalHero(p.HeroID, p.Hero),
-		Team:                 p.Team,
-		Name:                 p.Name,
-		Position:             p.Position,
-		Lane:                 p.Lane,
-		Kills:                p.Kills,
-		Deaths:               p.Deaths,
-		Assists:              p.Assists,
-		Level:                p.Level,
-		LastHits:             p.LastHits,
-		Networth:             p.Networth,
-		GPM:                  p.GPM,
-		XPM:                  p.XPM,
-		Healing:              float64(p.Healing),
-		HeroDamage:           p.HeroDamage,
-		DamageTaken:          p.DamageTaken,
-		TowerDamage:          p.TowerDamage,
-		TimeDead:             p.TimeDead,
-		StunDuration:         p.StunDuration,
-		GoldSpentWards:       p.GoldSpentWards,
-		GoldSpentSmoke:       p.GoldSpentSmoke,
-		GoldSpentDust:        p.GoldSpentDust,
-		GoldLost:             p.GoldLost,
-		CampsStacked:         p.CampsStacked,
-		CreepsStacked:        p.CreepsStacked,
-		RunePickups:          p.RunePickups,
-		FirstBlood:           p.FirstBlood,
-		BuffsDuration:        p.BuffDuration,
-		Save:                 sumCategory(p.BuffSources, "save"),
-		Purge:                sumCategory(p.BuffSources, "purge"),
-		ShieldUptime:         sumCategory(p.BuffSources, "shield"),
-		BuffStatsDuration:    sumCategory(p.BuffSources, "buff_stats"),
-		InvisibilityDuration: sumCategory(p.BuffSources, "invisibility"),
-		BuffHasteDuration:    sumCategory(p.BuffSources, "buff_haste"),
-
-		FearDuration:     p.FearDuration,
-		RootsDuration:    p.RootsDuration,
-		LeashDuration:    p.LeashDuration,
-		TrapDuration:     p.TrapDuration,
-		TauntDuration:    p.TauntDuration,
-		SilenceDuration:  p.SilenceDuration,
-		BreakDuration:    p.BreakDuration,
-		DisarmDuration:   p.DisarmDuration,
-		HealDuration:     p.HealDuration,
-		HealValue:        p.HealValue,
-		WisdomsCaptured:  p.WisdomsCaptured,
-		WatchersCaptured: p.WatchersCaptured,
-		LotusesGathered:  p.LotusesGathered,
-		CourierKills:     p.CourierKills,
-	}
-}
-
 // sumCategory totals buff stats for one category. Purges are reported as an
 // application count; older output carried a duration/value instead.
-func sumCategory(sources []parser.SourceEntry, category string) float64 {
+func sumCategory(sources []manta.SourceEntry, category string) float64 {
 	var total float64
 	for _, s := range sources {
 		if s.Category != category {
@@ -209,33 +149,25 @@ func sumCategory(sources []parser.SourceEntry, category string) float64 {
 	return total
 }
 
-// ParseReplay is the full pipeline: local JSON/NDJSON aggregation, or a .dem
-// replay parsed by the selected engine (odota over HTTP, manta in-process).
-func ParseReplay(ctx context.Context, path, parserURL, engine string) (model.Result, error) {
+// ParseReplay parses a manta .dem replay or an already aggregated match JSON.
+func ParseReplay(ctx context.Context, path string) (model.Result, error) {
 	kind := bySuffix(strings.ToLower(strings.TrimSuffix(strings.TrimSuffix(path, ".bz2"), ".zst")))
-
-	if kind == "dem" && engine == EngineManta {
-		return parseManta(ctx, path)
+	if kind == "ndjson" {
+		return model.Result{}, fmt.Errorf("%w: NDJSON больше не поддерживается", ErrParse)
 	}
-
-	input := path
-	if compressedHeader(path) {
-		tmp, err := decompress(path)
-		if err != nil {
-			return model.Result{}, err
+	if kind == "json" {
+		input := path
+		if compressedHeader(path) {
+			tmp, err := decompress(path)
+			if err != nil {
+				return model.Result{}, err
+			}
+			input = tmp
+			defer os.Remove(input)
 		}
-		input = tmp
-		defer os.Remove(input)
-	}
-
-	switch kind {
-	case "ndjson":
-		return parseNDJSONFile(input)
-	case "json":
 		return parseJSONFile(input)
-	default:
-		return parseFromHTTP(ctx, input, parserURL)
 	}
+	return parseManta(ctx, path)
 }
 
 func bySuffix(lower string) string {
@@ -249,67 +181,27 @@ func bySuffix(lower string) string {
 	}
 }
 
-func parseNDJSONFile(path string) (model.Result, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return model.Result{}, fmt.Errorf("%w: %v", ErrReplay, err)
-	}
-	defer f.Close()
-	match, err := parser.AggregateStream(f)
-	if err != nil {
-		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
-	}
-	return FromMatch(match), nil
-}
-
 func parseJSONFile(path string) (model.Result, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return model.Result{}, fmt.Errorf("%w: %v", ErrReplay, err)
 	}
-	// Aggregated Match objects carry a players array; raw event files do not.
-	if hasPlayersField(data) {
-		return ReadAggregatedJSON(data)
-	}
-	match, err := parser.AggregateStream(bytes.NewReader(data))
-	if err != nil {
-		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
-	}
-	return FromMatch(match), nil
+	return ReadAggregatedJSON(data)
 }
 
 func parseManta(ctx context.Context, path string) (model.Result, error) {
 	match, err := manta.ParseFile(ctx, path)
 	if err != nil {
-		if errors.Is(err, manta.ErrNotReplay) {
+		switch {
+		case errors.Is(err, manta.ErrNotReplay):
 			return model.Result{}, fmt.Errorf("%w: %v", ErrReplay, err)
+		case errors.Is(err, manta.ErrNoPlayerResource):
+			return model.Result{}, fmt.Errorf("%w: %v", ErrNoPlayers, err)
+		default:
+			return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
 		}
-		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
 	}
-	return fromManta(match)
-}
-
-// fromManta reuses the aggregated-JSON mapping: manta emits the odota-cli
-// match schema plus the mana_restored extension.
-func fromManta(match *manta.Match) (model.Result, error) {
-	data, err := json.Marshal(match)
-	if err != nil {
-		return model.Result{}, fmt.Errorf("%w: %v", ErrParse, err)
-	}
-	return ReadAggregatedJSON(data)
-}
-
-func parseFromHTTP(ctx context.Context, path, parserURL string) (model.Result, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return model.Result{}, fmt.Errorf("%w: %v", ErrReplay, err)
-	}
-	defer f.Close()
-	match, err := parser.ParseDemContext(ctx, f, parserURL)
-	if err != nil {
-		return model.Result{}, fmt.Errorf("%w: %v", ErrHTTP, err)
-	}
-	return FromMatch(match), nil
+	return fromManta(match), nil
 }
 
 // compressedHeader reports whether the file begins with a bzip2 or zstd magic.
@@ -325,14 +217,14 @@ func compressedHeader(path string) bool {
 	return string(header[:min(n, 3)]) == bz2Header || bytes.Equal(header, []byte(zstdHeader[:len(header)]))
 }
 
-// decompress expands a bzip2/zstd file into a temporary uncompressed copy.
+// decompress expands a bzip2/zstd JSON file into a temporary uncompressed copy.
 func decompress(path string) (string, error) {
 	src, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrReplay, err)
 	}
 	defer src.Close()
-	dst, err := os.CreateTemp("", "mvp-*.dem")
+	dst, err := os.CreateTemp("", "mvp-*.json")
 	if err != nil {
 		return "", err
 	}

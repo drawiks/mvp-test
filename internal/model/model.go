@@ -48,8 +48,6 @@ type Player struct {
 	SilenceDuration  float64
 	BreakDuration    float64
 	DisarmDuration   float64
-	HealDuration     float64
-	HealValue        float64
 	WisdomsCaptured  int
 	WatchersCaptured int
 	LotusesGathered  int

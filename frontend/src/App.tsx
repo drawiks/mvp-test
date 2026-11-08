@@ -125,7 +125,7 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined" || !window.runtime?.OnFileDrop) return;
     window.runtime.OnFileDrop((_x, _y, paths) => {
-      const target = (paths ?? []).find((p) => /\.(dem|json|ndjson|bz2|zst)$/i.test(p));
+      const target = (paths ?? []).find((p) => /\.(dem|json|bz2|zst)$/i.test(p));
       if (target) void Bindings.ParseReplay(target);
     }, true);
     return () => {

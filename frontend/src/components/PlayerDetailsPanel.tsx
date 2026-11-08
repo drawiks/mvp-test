@@ -7,7 +7,7 @@ import HeroIcon from "@/components/HeroIcon";
 import { heroName } from "@/lib/heroNames";
 import { WEIGHT_META } from "@/lib/weights";
 
-const PLAYER_TOKENS = WEIGHT_META.filter((token) => token.key !== "match_duration");
+const PLAYER_TOKENS = WEIGHT_META.filter((token) => token.key !== "match_duration" && token.key !== "hero");
 
 function rawValue(hero: main.PlayerView, key: string): string {
   if (key === "networth") return String(hero.Networth);

@@ -532,6 +532,24 @@ func TestUsedTokens(t *testing.T) {
 	}
 }
 
+func TestEvalHeroString(t *testing.T) {
+	expr := `if hero == "templar_assassin" { kills * 2 } else { kills }`
+	if err := Validate(expr, statTokens); err != nil {
+		t.Fatal(err)
+	}
+	got, err := EvalEnv(expr, map[string]any{"hero": "templar_assassin", "kills": 10})
+	if err != nil || !approx(got, 20, 1e-9) {
+		t.Fatalf("got %v err %v", got, err)
+	}
+	got, err = EvalEnv(expr, map[string]any{"hero": "rubick", "kills": 10})
+	if err != nil || !approx(got, 10, 1e-9) {
+		t.Fatalf("got %v err %v", got, err)
+	}
+	if _, ok := ExpressionToWeights(expr); ok {
+		t.Fatal("hero formula must not convert to weights")
+	}
+}
+
 func TestLetNotLinear(t *testing.T) {
 	expr := "let core = kills * 2; core + assists"
 	if _, ok := ExpressionToWeights(expr); ok {

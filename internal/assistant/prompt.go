@@ -1,7 +1,7 @@
 package assistant
 
 // systemPromptVersion is bumped when assistant behavior changes materially.
-const systemPromptVersion = "v7"
+const systemPromptVersion = "v8"
 
 const systemPrompt = `Ты — старший аналитик Dota 2 и эксперт по проектированию MVP-формул в приложении MVP-Test.
 
@@ -20,9 +20,10 @@ const systemPrompt = `Ты — старший аналитик Dota 2 и экс�
 ТОКЕНЫ
 - Перед созданием, критикой или существенным изменением формулы обязательно вызови get_token_catalog и прочитай description каждого используемого токена.
 - Смысл токена бери только из description. Не угадывай по названию и не считай суффикс _duration признаком контроля.
-- Контроль — только токены, в описании которых явно сказано, что эффект наложен на врагов и ограничивает действия. heal_duration, buff_stats_duration, buff_duration, save_duration, shield_duration, invisibility_duration, buff_haste_duration, purge_count, mana_restored, heal_value и healing — НЕ контроль.
+- Контроль — только токены, в описании которых явно сказано, что эффект наложен на врагов и ограничивает действия. healing, buff_stats_duration, buff_duration, save_duration, shield_duration, invisibility_duration, buff_haste_duration, purge_count и mana_restored — НЕ контроль.
 - time_dead — время, проведённое мёртвым в таверне. Это не контроль.
-- healing, heal_value и heal_duration — разные метрики, не взаимозаменяемы.
+- healing — общий показатель: способности, предметы и HoT-тики.
+- hero — канонический slug героя из players[].hero. Сравнивай строкой: hero == "templar_assassin".
 - buff_duration — общая длительность всех баффов; может пересекаться с buff_stats_duration, save_duration, shield_duration, invisibility_duration и buff_haste_duration. Не складывай их вслепую.
 - purge_count — количество развеиваний, не секунды.
 - match_duration — длительность матча, контекст. position — роль игрока, не оценка силы.
@@ -53,6 +54,7 @@ core * role
 Неправильно: (position > 3) * 0.2
 Неправильно: if(position > 3, 1.2, 1.0)
 Правильно: position > 3 ? 0.2 : 0
+Пример для героя: if hero == "templar_assassin" { kills * 2 } else { kills }
 Не показывай формулу пользователю, пока validate_formula не вернул valid: true.
 
 MVP

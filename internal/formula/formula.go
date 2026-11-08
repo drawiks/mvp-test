@@ -19,7 +19,7 @@ type Stat struct {
 var Stats = []Stat{
 	{"kills", "Kills"}, {"deaths", "Deaths"}, {"assists", "Assists"},
 	{"last_hits", "Last Hits"}, {"gpm", "GPM"}, {"xpm", "XPM"},
-	{"stun_duration", "Stun Duration"}, {"healing", "Instant Healing"}, {"mana_restored", "Mana Restored"},
+	{"stun_duration", "Stun Duration"}, {"healing", "Total Healing"}, {"mana_restored", "Mana Restored"},
 	{"tower_damage", "Tower Dmg"},
 	{"camps_stacked", "Camps Stacked"}, {"rune_pickups", "Rune Pickups"},
 	{"first_blood", "First Blood"}, {"hero_damage", "Hero Dmg"},
@@ -35,11 +35,10 @@ var Stats = []Stat{
 	{"leash_duration", "Leash"}, {"trap_duration", "Trap"},
 	{"taunt_duration", "Taunt"}, {"silence_duration", "Silence"},
 	{"break_duration", "Break"}, {"disarm_duration", "Disarm"},
-	{"heal_duration", "HoT Heal Duration"}, {"heal_value", "HoT Heal Value"},
 	{"time_dead", "Time in Tavern"}, {"creeps_stacked", "Creeps Stacked"},
 	{"wisdoms_captured", "Wisdoms Captured"}, {"watchers_captured", "Watchers Captured"},
 	{"lotuses_gathered", "Lotuses Gathered"}, {"courier_kills", "Courier Kills"},
-	{"match_duration", "Match Duration"}, {"position", "Position"},
+	{"match_duration", "Match Duration"}, {"position", "Position"}, {"hero", "Hero"},
 }
 
 var (
@@ -74,7 +73,6 @@ func init() {
 		{"leash_duration", "leash_duration"}, {"trap_duration", "trap_duration"},
 		{"taunt_duration", "taunt_duration"}, {"silence_duration", "silence_duration"},
 		{"break_duration", "break_duration"}, {"disarm_duration", "disarm_duration"},
-		{"heal_duration", "heal_duration"}, {"heal_value", "heal_value"},
 		{"time_dead", "time_dead"}, {"creeps_stacked", "creeps_stacked"},
 		{"wisdoms_captured", "wisdoms_captured"}, {"watchers_captured", "watchers_captured"},
 		{"lotuses_gathered", "lotuses_gathered"}, {"courier_kills", "courier_kills"},
@@ -106,8 +104,8 @@ var DefaultLinearWeights = map[string]float64{
 	"buff_stats_duration": 0.0, "invisibility_duration": 0.0, "buff_haste_duration": 0.0,
 	"fear_duration": 0.0, "roots_duration": 0.0, "leash_duration": 0.0,
 	"trap_duration": 0.0, "taunt_duration": 0.0, "silence_duration": 0.0,
-	"break_duration": 0.0, "disarm_duration": 0.0, "heal_duration": 0.0,
-	"heal_value": 0.0, "time_dead": 0.0, "creeps_stacked": 0.0,
+	"break_duration": 0.0, "disarm_duration": 0.0,
+	"time_dead": 0.0, "creeps_stacked": 0.0,
 }
 
 const TutorialFormula = `# Учебная формула: показывает возможности языка на реальных токенах.
@@ -441,6 +439,10 @@ func Validate(expression string, allowed map[string]bool) error {
 	}
 	env := make(map[string]any, len(allowed))
 	for name := range allowed {
+		if name == "hero" {
+			env[name] = ""
+			continue
+		}
 		env[name] = float64(0)
 	}
 	if _, err := expr.Compile(prepared, expr.Env(env), expr.AsFloat64()); err != nil {
@@ -451,7 +453,7 @@ func Validate(expression string, allowed map[string]bool) error {
 
 func checkNode(n ast.Node, allowed map[string]bool) error {
 	switch node := n.(type) {
-	case *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode:
+	case *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode, *ast.StringNode:
 		return nil
 	case *ast.IdentifierNode:
 		if allowed[node.Value] {
@@ -539,17 +541,22 @@ func typeName(n ast.Node) string {
 }
 
 func Eval(expression string, vars map[string]float64) (float64, error) {
-	if err := Validate(expression, statTokens); err != nil {
-		return 0, err
-	}
-	return run(expression, vars)
-}
-
-func run(expression string, vars map[string]float64) (float64, error) {
 	env := make(map[string]any, len(vars))
 	for k, v := range vars {
 		env[k] = v
 	}
+	return EvalEnv(expression, env)
+}
+
+// EvalEnv evaluates a formula with mixed numeric and string values, such as hero.
+func EvalEnv(expression string, env map[string]any) (float64, error) {
+	if err := Validate(expression, statTokens); err != nil {
+		return 0, err
+	}
+	return runEnv(expression, env)
+}
+
+func runEnv(expression string, env map[string]any) (float64, error) {
 	program, err := expr.Compile(prepareFormula(expression))
 	if err != nil {
 		return 0, errf("Ошибка в формуле: %v", err)
@@ -599,6 +606,11 @@ func Breakdown(expression string, vars map[string]float64) ([]BreakdownRow, erro
 	for k, v := range vars {
 		env[k] = v
 	}
+	return BreakdownEnv(expression, env)
+}
+
+// BreakdownEnv evaluates a formula with mixed numeric and string values.
+func BreakdownEnv(expression string, env map[string]any) ([]BreakdownRow, error) {
 	prepared := prepareFormula(expression)
 	trimmed := strings.TrimSpace(prepared)
 	if trimmed == "" {
